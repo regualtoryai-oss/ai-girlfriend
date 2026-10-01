@@ -1,11 +1,13 @@
 # Companion Agent
 
-Avatar-first local preview. Node.js 24+, no install required: `node server/app.mjs` or `Start-Demo.cmd`. Open http://127.0.0.1:8793 . Only localhost is bound.
+Chinese avatar-first local demo, bound only to http://127.0.0.1:8793. Start the prepared installation with `Start-Demo.cmd` or `node server/app.mjs`.
 
-Current executor is **bounded-local-file**, a deterministic Markdown writer using the user's supplied title and notes. It is not an LLM or DeepSeek Harness execution. Chat, Jev, ASR and TTS are not connected. Voice controls never request microphone permission. Stop playback and cancel task are separate controls.
+The active foundation is **official DeepSeek Harness 0.1.3-alpha.1**, pinned to tag `dsh-v0.1.3-alpha.1` / commit `d347e703908d0406b7a7ef80e3a0e594d86b2215`. Its source SDK runtime runs actual model/tool turns. The browser-to-Harness-to-Markdown download flow has passed a real local test; evidence is in `dsh/alpha1/ui-acceptance.json`. Task cancellation and avatar playback stopping are separate operations.
 
-Local assets are intentionally ignored: copy the approved original portrait to `public/assets/portrait.png` and optional cached preview to `public/assets/idle.mp4`. See `public/assets/manifest.json`. No reference-video media or noncommercial model outputs are published. Missing assets produce a clear unavailable state, not substitute identity.
+For a fresh Windows checkout: Node 24, Python and Visual Studio C++ Build Tools are prerequisites. Run `npm ci --ignore-scripts`, then `powershell -File Setup-Harness.ps1`. Setup downloads the exact official tag and its locked dependencies, builds required fs-ext, and runs a keyless smoke. It does not install global tools or call a model. Use the write-only localhost developer configuration page for independently approved provider credentials. No key is included in this repository.
 
-Fresh official Harness source is isolated in ignored `vendor/deepseek-harness`. Revision is recorded in `licenses/SOURCES.json`; no existing user profiles or credentials are loaded. No pharma-project integration.
+Jev's actual Cordis plugin is pending source integration. Voice/ASR/TTS and microphone are unconnected. The original fictional portrait is static; the optional idle clip is cached offline research output, not a live avatar or lip-sync claim. No payment or public deployment is enabled.
 
-Local branch owns UI, server fallback and launchers. Cloud branch owns `packages/decision-core`, `contracts`, `tests/contracts`, and designated architecture/development/license documentation. No model weights, environments, user history, credentials or vendor checkouts belong in Git.
+Local assets are ignored: the approved portrait belongs at `public/assets/portrait.png`, with optional `public/assets/idle.mp4`. See the asset manifest. No reference-video media or noncommercial model weights/outputs are published.
+
+Harness source, runtime caches, workspaces, user history and private provider configuration are ignored. The former 0.2 runtime remains separate and is not the integration baseline. See `server/README.md` and `dsh/alpha1/README.md` for controls and limitations.

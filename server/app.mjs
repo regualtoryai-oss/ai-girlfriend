@@ -6,16 +6,18 @@ import {randomUUID} from 'node:crypto';
 import {Jobs,validId} from './jobs.mjs';
 import {createSafeLogger} from './logger.mjs';
 import {createConfigStore,createAdminSessions} from './admin.mjs';
+import {createConfiguredProviders} from './providers.mjs';
+import {createHarnessAdapter} from './harness-adapter.mjs';
 const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.mp4':'video/mp4','.json':'application/json','.md':'text/markdown; charset=utf-8'};
 const fault=(status,message)=>Object.assign(new Error(message),{status});
 async function body(req){if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))throw fault(415,'JSON required');let data='';for await(const chunk of req){data+=chunk;if(Buffer.byteLength(data)>12000)throw fault(413,'Body too large');}try{return JSON.parse(data);}catch{throw fault(400,'Invalid JSON');}}
 export function createApp({dataRoot=path.join(projectRoot,'data'),publicRoot=path.join(projectRoot,'public'),adapters={},logger=()=>{},beforeCommit,allowExternalCalls=false}={}){
  dataRoot=path.resolve(dataRoot);publicRoot=path.resolve(publicRoot);
- const jobs=new Jobs(path.join(dataRoot,'tasks'),beforeCommit),log=createSafeLogger(logger),turns=new Map();
+ const jobs=new Jobs(path.join(dataRoot,'tasks'),beforeCommit,allowExternalCalls&&adapters.harness?.configured?adapters.harness:null),log=createSafeLogger(logger),turns=new Map();
  const config=createConfigStore(dataRoot),admin=createAdminSessions();
  const configured=a=>a?.configured===true;
- const status=()=>({app:'companion-agent-preview',executor:'bounded-local-file',harness:configured(adapters.harness)?'configured-not-executing':'source-ready-not-connected',jev:configured(adapters.jev)?'configured-not-executing':'not-connected',llm:configured(adapters.chat)?(allowExternalCalls?'ready':'configured-calls-disabled'):'not-connected',voice:'not-connected',microphone:false,externalCallsAuthorized:allowExternalCalls});
+ const status=()=>({app:'companion-agent-preview',executor:jobs.adapter?'deepseek-harness':'bounded-local-file',harness:jobs.adapter?'ready':'not-connected',harnessVersion:jobs.adapter?.version||null,harnessState:jobs.adapter?.state||null,jev:configured(adapters.jev)?'configured-not-executing':'not-connected',llm:configured(adapters.chat)?(allowExternalCalls?'ready':'configured-calls-disabled'):'not-connected',voice:'not-connected',microphone:false,externalCallsAuthorized:allowExternalCalls,providers:adapters.state||null});
  const handler=async(req,res)=>{const requestId=validId(req.headers['x-request-id'])?req.headers['x-request-id']:randomUUID();res.setHeader('X-Request-Id',requestId);
   const json=(code,data)=>{if(res.destroyed||res.writableEnded)return;log('http.response',{requestId,status:code});res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify({...data,requestId}));};
   try{
@@ -39,12 +41,13 @@ export function createApp({dataRoot=path.join(projectRoot,'data'),publicRoot=pat
     if(!configured(adapters.chat)||!allowExternalCalls)return json(503,{turnId:input.turnId,error:'对话模型尚未连接或调用尚未授权。'});
     if(turns.has(input.turnId))return json(409,{turnId:input.turnId,error:'Turn already submitted'});
     if(turns.size>=100)return json(429,{error:'Turn session limit reached'});
+    if(input.history!==undefined&&(!Array.isArray(input.history)||input.history.length>8||input.history.some(m=>!m||!['user','assistant'].includes(m.role)||typeof m.content!=='string'||m.content.length>2000)))throw fault(400,'Invalid history');
     const controller=new AbortController();turns.set(input.turnId,{controller,state:'running'});
     const onClose=()=>{if(!res.writableEnded)controller.abort();};res.on('close',onClose);
-    const timeout=setTimeout(()=>controller.abort(),20000);
-    try{const result=await Promise.race([adapters.chat.complete({text:input.text,turnId:input.turnId,requestId,signal:controller.signal}),new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(fault(499,'Turn cancelled')),{once:true}))]);
-     if(controller.signal.aborted)throw fault(499,'Turn cancelled');if(typeof result?.text!=='string'||result.text.length>20000)throw fault(502,'Invalid model response');turns.get(input.turnId).state='completed';return json(200,{turnId:input.turnId,text:result.text,source:'model'});
-    }catch(e){turns.get(input.turnId).state=controller.signal.aborted?'cancelled':'failed';return json(controller.signal.aborted?499:502,{turnId:input.turnId,error:controller.signal.aborted?'对话已取消':'模型请求未完成'});}finally{clearTimeout(timeout);res.off('close',onClose);}
+    const timeout=setTimeout(()=>controller.abort(),65000);
+    try{const result=await Promise.race([adapters.chat.complete({text:input.text,turnId:input.turnId,requestId,signal:controller.signal,history:input.history||[]}),new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(fault(499,'Turn cancelled')),{once:true}))]);
+     if(controller.signal.aborted)throw fault(499,'Turn cancelled');if(typeof result?.text!=='string'||result.text.length>20000)throw fault(502,'Invalid model response');turns.get(input.turnId).state='completed';return json(200,{turnId:input.turnId,text:result.text,source:'model',decision:result.decision||null,provider:result.provider||null,model:result.model||null,harnessVersion:result.harnessVersion||null});
+    }catch(e){turns.get(input.turnId).state=controller.signal.aborted?'cancelled':'failed';return json(controller.signal.aborted?499:502,{turnId:input.turnId,error:controller.signal.aborted?'对话已取消':'模型请求未完成',provider:['deepseek','jev'].includes(e.provider)?e.provider:null,providerStatus:Number.isInteger(e.providerStatus)?e.providerStatus:null});}finally{clearTimeout(timeout);res.off('close',onClose);}
    }
    const turn=p.match(/^\/api\/turns\/([a-f0-9-]{36})\/cancel$/i);if(turn&&req.method==='POST'){const t=turns.get(turn[1]);if(!t)return json(404,{error:'Unknown turn'});t.controller.abort();if(t.state==='running')t.state='cancelled';return json(200,{turnId:turn[1],state:t.state});}
    if(p==='/api/audio/stop'&&req.method==='POST'){const input=await body(req);if(input.turnId!==undefined&&!validId(input.turnId))throw fault(400,'Invalid turn');return json(200,{event:'audio.stop',turnId:input.turnId||null,audio:'not-connected',tasksUnaffected:true});}
@@ -59,10 +62,11 @@ export function createApp({dataRoot=path.join(projectRoot,'data'),publicRoot=pat
    res.writeHead(200,{'Content-Length':data.length});res.end(req.method==='HEAD'?undefined:data);
   }catch(e){json(e.status||(e.code==='ENOENT'?404:500),{error:e.status?e.message:'资源暂不可用'});}
  };
- return Object.assign(handler,{jobs,status,dataRoot,close(){for(const t of turns.values())t.controller.abort();}});
+ return Object.assign(handler,{jobs,status,dataRoot,close(){jobs.close();for(const t of turns.values())t.controller.abort();}});
 }
 export function createServer(options={}){const app=createApp(options),server=http.createServer(app);server.app=app;server.on('close',()=>app.close());return server;}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const port=Number(process.env.COMPANION_PORT||8793);if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid port');
- const server=createServer();server.listen(port,'127.0.0.1',()=>console.log(`Companion preview http://127.0.0.1:${port} | bounded-local-file | no model / microphone`));
+ const dataRoot=path.join(projectRoot,'data');const providers=createConfiguredProviders(dataRoot);const harness=createHarnessAdapter(projectRoot,dataRoot);const adapters={chat:harness,harness,jev:providers.jev,state:{harness:harness.state,jev:{connected:false,status:'plugin-integration-pending'}}};
+ const server=createServer({dataRoot,adapters,allowExternalCalls:true});server.listen(port,'127.0.0.1',()=>console.log(`Companion preview http://127.0.0.1:${port} | Harness 0.1.3-alpha.1 | isolated chat/task runtimes | no microphone`));
 }

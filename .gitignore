@@ -12,3 +12,8 @@ public/assets/*
 evidence/
 deliverables/
 *.log
+
+runtime/
+workspaces/
+
+build-tools/
