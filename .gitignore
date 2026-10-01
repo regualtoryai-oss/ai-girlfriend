@@ -1,0 +1,14 @@
+node_modules/
+vendor/
+data/
+logs/
+cache/
+profiles/
+config/*.local.*
+.env*
+!.env.example
+public/assets/*
+!public/assets/manifest.json
+evidence/
+deliverables/
+*.log

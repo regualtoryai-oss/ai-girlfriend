@@ -1,0 +1,15 @@
+{
+  "portrait": {
+    "path": "portrait.png",
+    "source": "User-approved original fictional adult portrait",
+    "sha256": "c06e32f1efb2d8c9756dd397f23f527bc9de6be05639a9a476188a5b0c2d0708",
+    "publish": false
+  },
+  "idle": {
+    "path": "idle.mp4",
+    "source": "Local Ditto silent cached preview; research-only dependencies; naturalness not accepted",
+    "sha256": "533fb994c3a2ebd0345800592ce96e417064064bbc1d75c456e0194dbd7120af",
+    "publish": false,
+    "live": false
+  }
+}

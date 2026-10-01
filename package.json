@@ -1,0 +1,13 @@
+{
+  "name": "companion-agent-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/app.mjs",
+    "test": "node --test server/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

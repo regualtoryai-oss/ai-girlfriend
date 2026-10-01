@@ -1,0 +1,13 @@
+{
+  "deepseek-harness": {
+    "url": "https://github.com/deepseek-ai/deepseek-harness",
+    "revision": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "license": "MIT",
+    "usage": "Fresh isolated source only; not running"
+  },
+  "local-file-task": {
+    "source": "Prior authorized local prototype; translated deterministic Markdown writer",
+    "execution": "No LLM or shell"
+  },
+  "assets": "Private local files only; excluded from Git"
+}
