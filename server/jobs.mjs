@@ -1,20 +1,36 @@
-import {mkdir,writeFile,rename,unlink} from 'node:fs/promises';
+import {mkdirSync,readFileSync,readdirSync,writeFileSync,renameSync,unlinkSync,existsSync} from 'node:fs';
 import path from 'node:path';
+export const validId=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
+const fail=(message,status)=>Object.assign(new Error(message),{status});
 export class Jobs {
-  constructor(dir,beforeCommit=async()=>{}){this.dir=dir;this.jobs=new Map();this.beforeCommit=beforeCommit;}
-  create(input){
-    if(!input || !/^[a-f0-9-]{36}$/.test(input.id)||typeof input.title!=='string'||!input.title.trim()||input.title.length>80||typeof input.notes!=='string'||input.notes.length>2000)throw Object.assign(new Error('标题或内容不符合要求'),{status:400});
-    const old=this.jobs.get(input.id);
-    if(old){if(old.title!==input.title||old.notes!==input.notes)throw Object.assign(new Error('重复编号内容冲突'),{status:409});return old;}
-    if(this.jobs.size>=100)throw Object.assign(new Error('本次运行任务已达上限'),{status:429});
-    const j={...input,state:'queued',executor:'bounded-local-file'};this.jobs.set(j.id,j);setImmediate(()=>this.run(j));return j;
+ constructor(dir,beforeCommit=async()=>{}){
+  this.dir=dir;this.ledger=path.join(dir,'.jobs');this.beforeCommit=beforeCommit;this.jobs=new Map();mkdirSync(this.ledger,{recursive:true});
+  for(const name of readdirSync(this.ledger).filter(n=>/^[a-f0-9-]{36}\.json$/i.test(n))){
+   const j=JSON.parse(readFileSync(path.join(this.ledger,name),'utf8'));if(!validId(j.id)||name!==`${j.id}.json`)throw Error('Invalid local job journal');
+   if(['queued','writing'].includes(j.state)){
+    const final=path.join(dir,`note-${j.id}.md`);
+    if(existsSync(final)){j.state='completed';j.name=path.basename(final);j.url=`/files/${j.name}`;j.bytes=readFileSync(final).length;}
+    else{j.state='failed';j.error='服务中断，任务未完成；请新建任务。';}
+    j.revision++;const partial=path.join(dir,`.${j.id}.partial`);if(existsSync(partial))unlinkSync(partial);this.persist(j);
+   }this.jobs.set(j.id,j);
   }
-  cancel(id){const j=this.jobs.get(id);if(j&&['queued','writing'].includes(j.state))j.state='cancelled';return j;}
-  async run(j){let tmp;try{
-    if(j.state==='cancelled')return;j.state='writing';await mkdir(this.dir,{recursive:true});
-    tmp=path.join(this.dir,`.${j.id}.partial`);const content=`# ${j.title.replace(/[\r\n]/g,' ')}\n\n${j.notes}\n\n---\n本文件由本地受限程序保存用户提供的内容，未调用模型。\n`;
-    await writeFile(tmp,content,{flag:'wx'});await this.beforeCommit();
-    if(j.state==='cancelled'){await unlink(tmp);return;}
-    j.name=`note-${j.id}.md`;await rename(tmp,path.join(this.dir,j.name));j.bytes=Buffer.byteLength(content);j.url=`/files/${j.name}`;j.state='completed';
-  }catch(e){if(tmp)await unlink(tmp).catch(()=>{});j.state='failed';j.error='文件保存失败';}}
+ }
+ persist(j){const dest=path.join(this.ledger,`${j.id}.json`),tmp=dest+'.tmp';writeFileSync(tmp,JSON.stringify(j),{mode:0o600});renameSync(tmp,dest);}
+ set(j,state){j.state=state;j.revision++;this.persist(j);}
+ create(input){
+  if(!input||!validId(input.id)||typeof input.title!=='string'||!input.title.trim()||input.title.length>80||typeof input.notes!=='string'||input.notes.length>2000||input.turnId!==undefined&&!validId(input.turnId))throw fail('标题或内容不符合要求',400);
+  const old=this.jobs.get(input.id);if(old){if(old.title!==input.title||old.notes!==input.notes||input.turnId&&old.turnId!==input.turnId)throw fail('重复编号内容冲突',409);return old;}
+  if(this.jobs.size>=100)throw fail('本地任务已达上限',429);
+  const j={id:input.id,title:input.title,notes:input.notes,turnId:input.turnId||input.id,requestId:input.requestId||input.id,state:'queued',revision:1,executor:'bounded-local-file'};
+  this.persist(j);this.jobs.set(j.id,j);setImmediate(()=>this.run(j));return j;
+ }
+ cancel(id,expectedRevision){const j=this.jobs.get(id);if(!j)return undefined;if(expectedRevision!==undefined&&expectedRevision!==j.revision)throw fail('任务状态已变化，请刷新后重试',409);if(['queued','writing'].includes(j.state))this.set(j,'cancelled');return j;}
+ async run(j){let tmp;try{
+  if(j.state==='cancelled')return;this.set(j,'writing');tmp=path.join(this.dir,`.${j.id}.partial`);
+  const content=`# ${j.title.replace(/[\r\n]/g,' ')}\n\n${j.notes}\n\n---\n本文件由本地受限程序保存用户提供的内容，未调用模型。\n`;
+  writeFileSync(tmp,content,{flag:'wx',mode:0o600});await this.beforeCommit();
+  if(j.state==='cancelled'){unlinkSync(tmp);return;}
+  // No await between the final cancellation check and atomic file publication.
+  j.name=`note-${j.id}.md`;renameSync(tmp,path.join(this.dir,j.name));tmp=null;j.bytes=Buffer.byteLength(content);j.url=`/files/${j.name}`;this.set(j,'completed');
+ }catch{if(tmp&&existsSync(tmp))unlinkSync(tmp);j.error='文件保存失败';try{this.set(j,'failed');}catch{j.state='failed';}}}
 }
