@@ -1,17 +1,17 @@
 const $=s=>document.querySelector(s),notice=s=>$('#notice').textContent=s;
 let currentTask=null,returnFocus=null,history=[],capabilities=null;
 async function refreshStatus(){try{capabilities=await api('/api/status');}catch{capabilities=null;}return capabilities;}
-refreshStatus().then(v=>{if(v?.llm==='ready'){notice('文字对话已配置 · 语音尚未连接');$('#composer button[type=submit]').textContent='发送 ↑';}});try{history=JSON.parse(localStorage.getItem('companion-preview-history')||'[]');if(!Array.isArray(history))history=[];}catch{}
+refreshStatus().then(v=>{if(v?.llm==='ready'){$('#composer button[type=submit]').textContent='发送 ↑';}});try{history=JSON.parse(localStorage.getItem('companion-preview-history')||'[]');if(!Array.isArray(history))history=[];}catch{}
 const save=()=>{try{localStorage.setItem('companion-preview-history',JSON.stringify(history.slice(-100)));}catch{notice('浏览器未允许保存记录');}};
 const drawer=$('#drawer'),content=$('#drawer-content');
-function open(title,build){returnFocus=document.activeElement;$('#drawer-title').textContent=title;content.replaceChildren();build(content);if(!drawer.open)drawer.showModal();}
+function open(title,build){$('#more').open=false;returnFocus=document.activeElement;$('#drawer-title').textContent=title;content.replaceChildren();build(content);if(!drawer.open)drawer.showModal();}
 function text(el,tag,value,cls){const n=document.createElement(tag);n.textContent=value;if(cls)n.className=cls;el.append(n);return n;}
 function button(el,label,fn,cls='secondary'){const b=text(el,'button',label,cls);b.type='button';b.onclick=fn;return b;}
 $('#close').onclick=()=>drawer.close();drawer.addEventListener('close',()=>returnFocus?.focus());drawer.addEventListener('click',e=>{if(e.target===drawer&&e.clientX<drawer.getBoundingClientRect().left)drawer.close();});
 async function status(){await refreshStatus();open('连接状态',c=>{text(c,'p','这是本机交互预览。以下连接状态来自当前运行的服务。');const v=capabilities;for(const [a,b] of [['画面','静态照片 / 缓存动作'],['文字模型',v?.llm==='ready'?'已配置 · 可调用':'未接通'],['语音 / 麦克风',v?.voice==='ready'?'已配置':'未接通 · 未申请权限'],['文件执行器',v?.executor==='bounded-local-file'?'本机受限文件保存':v?.executor||'状态不可用'],['Harness',v?.harness==='ready'?`已接通 · ${v.harnessVersion}`:v?.harness||'状态不可用'],['Jev',v?.jev||'状态不可用']]){const row=text(c,'div','', 'state-row');text(row,'span',a);text(row,'b',b);}text(c,'p','动作预览是离线生成的静默片段，不代表实时口型或正在倾听。');const settingsLink=text(c,'a','设置 → 开发者配置');settingsLink.href='/settings.html';});}
 $('#status-open').onclick=status;$('#voice').onclick=()=>{status();notice('语音尚未连接；没有申请麦克风权限。');};
 const idle=$('#idle');function stop(){idle.pause();idle.currentTime=0;idle.classList.remove('active');$('#stop').disabled=true;$('#visual-label').textContent='原创 AI 角色 · 静态形象';}
-$('#stop').onclick=()=>{stop();api('/api/audio/stop',{}).catch(()=>{});notice('已停止画面播放，后台任务不受影响。');};idle.onended=()=>{stop();notice('动作预览结束 · 对话与语音尚未连接');};idle.onerror=()=>{stop();notice('本地动作文件不可用，保留静态形象。');};
+$('#stop').onclick=()=>{stop();api('/api/audio/stop',{}).catch(()=>{});notice('已停止画面播放，后台任务不受影响。');};idle.onended=()=>{stop();notice('离线动作预览结束');};idle.onerror=()=>{stop();notice('本地动作文件不可用，保留静态形象。');};
 $('#motion').onclick=async()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches){notice('已尊重减少动态设置，保持静态形象。');return;}try{idle.currentTime=0;await idle.play();idle.classList.add('active');$('#stop').disabled=false;$('#visual-label').textContent='缓存动作预览 · 非实时';notice('正在播放离线静默片段，不是实时对话。');}catch{notice('动作预览无法播放');}};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});$('#portrait').onerror=()=>notice('缺少本地原创画像，请按项目 README 放置已批准资产。');
 $('#text-toggle').onclick=()=>{const show=$('#composer').hidden;$('#composer').hidden=!show;$('#text-toggle').setAttribute('aria-expanded',String(show));if(show)$('#message').focus();};
