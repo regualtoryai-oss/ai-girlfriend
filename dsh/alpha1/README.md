@@ -1,21 +1,9 @@
-# Harness alpha.1 local proof
+# Pinned Harness integration
 
-Official tag `dsh-v0.1.3-alpha.1`, commit `d347e703908d0406b7a7ef80e3a0e594d86b2215`, is the locked baseline. npm has no published alpha.1 package, so the official source CLI runs via its supported `node --import tsx/esm` path with the `sdk` profile. This is not a substitute agent loop.
+The current author runtime uses official DeepSeek Harness 0.1.3-alpha.1, tag dsh-v0.1.3-alpha.1, commit d347e703908d0406b7a7ef80e3a0e594d86b2215, and pnpm 11.7.0. Setup-Harness.ps1 installs the original frozen graph, restores only the reviewed local UI patch and current voice client, verifies that every upstream resolved package remains unchanged, builds the host/client/frontend and registers both profiles.
 
-`D:\Companion-Agent\data\dsh-home-alpha1` is isolated from 0.2 and other projects. The upstream checkout is clean. pnpm 11.7.0 installed 1068 packages from its original frozen lockfile. The required `fs-ext@2.1.1` native extension was built with existing Visual Studio Build Tools and Python; no global installation was needed. Other dependency install scripts remain skipped.
+The current author profile is author-web on 8796. The sdk profile supports the retained 8793 preview. Both use isolated project-relative data/workspace directories. Upgrades remain a separate compatibility decision.
 
-## Validation
+Run node dsh/alpha1/run-proof.mjs for a keyless SDK handshake after setup. Ordinary installation and tests send no provider requests. The --live option exists only for a separately approved real model task and requires private configuration; it was not used for this release.
 
-Run `node D:\Companion-Agent\dsh\alpha1\run-proof.mjs` for a keyless SDK handshake. Add `--live` only for an explicitly authorized small real DeepSeek file task. It uses this application's own configured credential internally and never prints it. Live execution is not part of ordinary unit tests.
-
-Validated: source runtime launch, Cordis tool registration, SDK initialization, official DeepSeek response, actual `companion_write_note` execution, file existence/content/SHA-256, and clean shutdown. See `version-lock.json` for the exact artifact. The file contains a Chinese three-item plan, not fabricated browser output.
-
-The plugin signals registration and the official `appReady` lifecycle before the client initializes. This avoids reporting a premature SDK response as runtime readiness while sibling imports may still fail. `fs_ext.node` was the diagnosed initial boot blocker.
-
-The overlay selects native tools, denies other tools at execution, disables general shell/filesystem/web tools and automatic session uploads/telemetry, keeps workspace-write, and sets zero automatic provider retries. The note tool writes only one fixed filename inside a newly allocated task workspace with exclusive creation. No arbitrary paths, commands or network actions are exposed by the note plugin.
-
-## Remaining integration
-
-The existing 8793 UI still uses its prior bounded local task handler. It is not yet wired to this Harness proof. Jev plugin integration, author voice plugin startup, live ASR/TTS, microphone access, real-time avatar animation and interruption remain unverified. The author's voice manifest is 0.3.0; pin the actual source commit before installation. Existing video assets are offline research samples.
-
-Do not copy real provider config files into source, profile files or bundles. Preserve the existing 0.2 runtime separately. Do not claim full repository build or Web client acceptance: this checkpoint validates the official source SDK runtime and genuine file-task chain.
+Private provider configuration, session logs, generated files and live receipts are excluded. Current verification results and limitations are recorded in ../../ACCEPTANCE.md. Historical UI acceptance metadata is anonymized and does not claim production real-time lip sync.

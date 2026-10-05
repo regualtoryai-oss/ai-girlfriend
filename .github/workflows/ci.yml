@@ -1,0 +1,30 @@
+name: Offline verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-files.txt
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: node --test dsh/author/portability.test.mjs integrations/dsh-ui-voice/tests/audio-lifecycle.test.mjs
+      - run: npm ci --ignore-scripts --omit=optional
+        working-directory: packages/jev-plugin
+      - run: npm test
+        working-directory: packages/jev-plugin
+      - run: npm ci --ignore-scripts --omit=optional
+        working-directory: packages/voice-plugin
+      - run: npm test
+        working-directory: packages/voice-plugin
+      - run: node scripts/audit-release.mjs --history

@@ -1,0 +1,7 @@
+// Launcher only: no HTTP server, queue, model execution, or application scheduler.
+import {spawn} from 'node:child_process';import path from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';import {mkdirSync} from 'node:fs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),repo=root+'/vendor/deepseek-harness-0.1.3-alpha.1',workspace=root+'/workspaces/native-host';mkdirSync(workspace,{recursive:true});
+const env={};for(const k of ['PATH','Path','SystemRoot','WINDIR','COMSPEC','ComSpec','TEMP','TMP','PATHEXT'])if(process.env[k])env[k]=process.env[k];
+Object.assign(env,{COMPANION_PROJECT_ROOT:root,DSH_HOME:root+'/data/dsh-home-alpha1',TSX_TSCONFIG_PATH:repo+'/tsconfig.json',DSH_TELEMETRY_DISABLED:'1',DSH_TELEMETRY_MODE:'DISABLED',DSH_PERMISSION_MODE:'workspace-write',DSH_PRIMARY_RUNTIME:'',COMPANION_DATA_ROOT:root+'/data',COMPANION_WORKSPACE_ROOT:root+'/data/workspace',COMPANION_BACKUP_ROOT:root+'/data/file-backups/native',COMPANION_MODEL_BASE:'https://newapi1.1234bot.com/v1'});
+const child=spawn(process.execPath,['--import',pathToFileURL(repo+'/node_modules/tsx/dist/esm/index.mjs').href,repo+'/apps/cli/src/bin.ts','--profile','companion','--patch',root+'/dsh/native/host.patch.yml'],{cwd:workspace,env,windowsHide:true,stdio:['ignore','inherit','inherit']});
+child.on('exit',code=>process.exit(code??1));for(const s of ['SIGINT','SIGTERM'])process.on(s,()=>child.kill());

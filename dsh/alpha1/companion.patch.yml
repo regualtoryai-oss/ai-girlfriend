@@ -83,7 +83,7 @@
 - id: llm-deepseek
   config:
     apiKeyEnv: DEEPSEEK_API_KEY
-    baseURL: https://api.deepseek.com
+    baseURL: !!js process.env.COMPANION_MODEL_BASE || 'https://api.deepseek.com'
     thinking: disabled
     streamIdleTimeoutMs: 25000
     retryPolicy:
@@ -102,7 +102,14 @@
       name: ./companion-plugin.mjs
 
 - id: sdk-jsonrpc-server
-  inject: [sdkAppStartup, loader, companionProofReady]
+  inject: [sdkAppStartup, loader, companionProofReady, companionJevReady]
 
 - id: plan-mode
   disabled: true
+
+- id: companion-jev
+  config:
+    timeoutMs: 8000
+- insert:
+    - id: companion-jev-provider
+      name: ./jev-provider-bridge.mjs

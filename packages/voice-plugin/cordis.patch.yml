@@ -1,0 +1,4 @@
+- insert:
+    - id: companion-voice
+      name: '@ai-girlfriend/voice-plugin'
+      config: {}

@@ -1,0 +1,20 @@
+[
+  {
+    "file": "microphone.svg",
+    "url": "https://raw.githubusercontent.com/tabler/tabler-icons/main/icons/outline/microphone.svg",
+    "bytes": 534,
+    "sha256": "804b6189fea0ae697def236da6790d3ae81e99449cd5c056245c205eb7f333f2"
+  },
+  {
+    "file": "keyboard.svg",
+    "url": "https://raw.githubusercontent.com/tabler/tabler-icons/main/icons/outline/keyboard.svg",
+    "bytes": 656,
+    "sha256": "8dcb52240a7f121651455a0a71322cb306c7e4695c70b4a9c14c453dc231c5da"
+  },
+  {
+    "file": "LICENSE",
+    "url": "https://raw.githubusercontent.com/tabler/tabler-icons/main/LICENSE",
+    "bytes": 1073,
+    "sha256": "b740a1d46122672da62833e97f7e7c8a13fa85cbc7445b584b297cc00dde93db"
+  }
+]

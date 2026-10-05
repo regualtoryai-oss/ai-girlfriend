@@ -1,0 +1,2 @@
+# Unified patch context deliberately contains a single leading blank.
+*.patch whitespace=-blank-at-eol

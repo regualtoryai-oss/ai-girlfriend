@@ -1,0 +1,6 @@
+{
+  "https://newapi1.1234bot.com": {
+    "deepseek-v4-flash": {"model": "deepseek-v4-flash", "unit": "USD", "verified": false, "inputPerMillion": null, "outputPerMillion": null, "groupMultiplier": null},
+    "deepseek-v4-pro": {"model": "deepseek-v4-pro", "unit": "USD", "verified": false, "inputPerMillion": null, "outputPerMillion": null, "groupMultiplier": null}
+  }
+}

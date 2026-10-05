@@ -1,0 +1,384 @@
+/**
+ * ReplySpeakerMount: hidden per-session component (renders null) that streams
+ * assistant text to TTS sentence-by-sentence — mirroring the original
+ * backend's LMOutputProcessor (per-sentence chunks) so long replies start
+ * speaking while the rest are still being synthesized.
+ *
+ * Each assistant chat node's text is split into complete sentences; as new
+ * complete sentences appear (the node streams via `assistant/chunk`
+ * publications), they are fetched from the bridge /api/tts through a serial
+ * chain and played back in order through the shared ReplySpeaker's FIFO
+ * queue. The trailing partial sentence is not spoken until it completes.
+ *
+ * History replay protection: nodes are seeded on first sight (their current
+ * complete sentences are marked spoken), so existing/old content never
+ * replays. Barge-in (mic start) swallows the rest of the current reply.
+ */
+import { memo, useEffect, useRef, useState } from 'react'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: pulls ui-conversation's SlotMap merge for PropsRuntime resolution.
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls ui-chat's `useChat` into SessionStandardProps (0.1.3).
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { AssistantChatData } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { tts, dhSpeak, dhStatus, dhDiscard, DH_CHANGE_EVENT } from '../bridge.ts'
+import { readDigitalHuman } from '../DigitalHumanToggle.tsx'
+import type { VoiceInjected } from '../contract.ts'
+import { cleanReplyText } from './clean.ts'
+import { splitSentences } from './sentences.ts'
+import { chatNodes } from './chat-nodes.ts'
+
+const VOICE_ENABLED_KEY = 's2s.voice.enabled'
+
+function voiceEnabled(): boolean {
+  try {
+    return localStorage.getItem(VOICE_ENABLED_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+/** Companion window visibility (digital-human video only matters when it shows). */
+function companionVisible(): boolean {
+  try {
+    return localStorage.getItem('s2s.voice.companion') !== '0'
+  } catch {
+    return true
+  }
+}
+
+/** Read the assistant row payload off a chat view node (kind `assistant-step`). */
+function assistantData(node: { kind: string; data: unknown }): AssistantChatData | undefined {
+  if (node.kind !== 'assistant-step') return undefined
+  return node.data as AssistantChatData
+}
+
+/** Join the node's text blocks (reasoning/tool-call/image excluded). */
+function nodeText(data: AssistantChatData): string {
+  return data.blocks
+    .filter(block => block.kind === 'text')
+    .map(block => block.text)
+    .join('\n')
+}
+
+/** Full props: framework runtime share + `voice` locale seat + injected face. */
+export type ReplySpeakerMountProps =
+  PropsRuntime<'conversation.input.left'> & PropsLocale<'voice'> & VoiceInjected
+
+/**
+ * @param props - framework runtime + locale + injected speaker/abort face.
+ */
+export const ReplySpeakerMount = memo(function ReplySpeakerMount({
+  useChat,
+  useSession,
+  speaker,
+  _registerTtsAbort,
+  _registerInterruptHandler,
+}: ReplySpeakerMountProps) {
+  // 0.1.3: chat nodes live on the `useChat` view snapshot (subscribing to it
+  // activates the chat target and materializes the nodes). Read them via the
+  // chatNodes helper; the rc.8 `snapshot.chat.nodes` map is gone.
+  const chat = useChat(s => s)
+  const sessionRunning = useSession(s => s.running)
+  const liveSeen = useRef(false)
+  const previousRunning = useRef(sessionRunning)
+  if (sessionRunning && !previousRunning.current) liveSeen.current = true
+  previousRunning.current = sessionRunning
+  const latestChat = useRef(chat)
+  latestChat.current = chat
+  const epoch = useRef(0)
+  const interruptedUser = useRef<number | null>(null)
+  const activeRequest = useRef<AbortController | null>(null)
+
+  // Per-node complete sentences already spoken (node.key -> count).
+  const spokenRef = useRef(new Map<string, number>())
+  // History replay protection: baseline anchor. On mount the conversation
+  // snapshot can be EMPTY (session history loads asynchronously after a
+  // restart), so a one-shot seed there would miss the history and every old
+  // reply would replay. Instead we wait until the first SETTLED assistant
+  // node arrives, then set the baseline to the current max anchor — nothing
+  // at or below it ever speaks. Live (running) nodes are never used for the
+  // baseline, so a fresh reply in a brand-new session still speaks.
+  const baselineRef = useRef<number | null>(null)
+  // Serial TTS fetch chain: sentence N+1's fetch starts after N's resolves
+  // (playback drains independently through the speaker queue — pipelined).
+  const chainRef = useRef<Promise<void>>(Promise.resolve())
+  // Barge-in: swallow the CURRENT reply only. We record the exact anchor of
+  // the reply being interrupted (never a "<= max" line): if the interrupt
+  // flag is consumed after a NEW reply already appeared in the snapshot, a
+  // range-based skip would swallow that fresh reply too — the "new reply
+  // never speaks" bug. Exact-anchor skip lets later replies play normally.
+  const interruptRef = useRef(false)
+  const skipAnchorRef = useRef(0)
+  const skipUntilRef = useRef(0)
+  // Digital-human: nodes whose finished reply was already handed to the bridge.
+  const dhSentRef = useRef(new Set<string>())
+  // Last-segment debounce per user turn: while a turn is still streaming, new
+  // settled texts keep replacing the "last" candidate; only once no new text
+  // arrives for LAST_DEBOUNCE_MS is the candidate confirmed and submitted.
+  // key = user anchor, value = { timer, anchor } (the candidate's anchor).
+  const dhLastDebounceRef = useRef(new Map<number, { timer: ReturnType<typeof setTimeout>; anchor: number }>())
+  const LAST_DEBOUNCE_MS = 4000
+  // 桥接侧数字人开关（null = 尚未确认）。它现在**可以热切**：本地开关一翻，
+  // 插件会 POST /api/dh/enable，桥接状态变化后广播 DH_CHANGE_EVENT，这里重新
+  // 拉取——所以不能再像以前那样只在挂载时解析一次（关掉就再也回不来）。
+  // 确认前既不朗读也不提交视频，避免「同一回复先逐句 TTS、又被生成视频」双重播放。
+  const [bridgeDh, setBridgeDh] = useState<boolean | null>(null)
+  // Code of the most recently submitted digital-human task (for discard).
+  const lastDhCodeRef = useRef<string | null>(null)
+  // Anchor of the last DH-submitted reply node; a later user node means the
+  // pending video is stale and should be discarded.
+  const lastDhReplyAnchorRef = useRef(0)
+  // Highest user-node anchor seen (new-turn detection).
+  const lastUserAnchorRef = useRef(0)
+
+  // Register the barge-in handler once (the mic calls interruptReply).
+  useEffect(() => {
+    _registerInterruptHandler(() => {
+      interruptedUser.current = Math.max(0, ...chatNodes(latestChat.current).filter(n => n.kind === 'user').map(n => n.anchorSeq))
+      epoch.current++
+      activeRequest.current?.abort()
+      activeRequest.current = null
+      chainRef.current = Promise.resolve()
+      skipUntilRef.current = Math.max(skipUntilRef.current, ...chatNodes(latestChat.current).filter(n => n.kind === 'assistant-step').map(n => n.anchorSeq), 0)
+      baselineRef.current = skipUntilRef.current
+      interruptRef.current = false
+      for (const {timer} of dhLastDebounceRef.current.values()) clearTimeout(timer)
+      dhLastDebounceRef.current.clear()
+    })
+    return () => _registerInterruptHandler(null)
+  }, [_registerInterruptHandler])
+
+  // Unmount: stop playback, release any in-flight TTS, clear DH debounce timers.
+  useEffect(() => () => {
+    epoch.current++
+    activeRequest.current?.abort()
+    speaker.stop()
+    _registerTtsAbort(null)
+    for (const { timer } of dhLastDebounceRef.current.values()) clearTimeout(timer)
+    dhLastDebounceRef.current.clear()
+  }, [speaker, _registerTtsAbort])
+
+  // Track the BRIDGE-side digital-human switch (it can change at runtime): poll
+  // it on mount, and re-read it whenever the local toggle announces a change
+  // (the plugin POSTs /api/dh/enable first, so the bridge is already updated by
+  // the time we look). Bridge unreachable -> false, i.e. replies still speak
+  // through sentence TTS.
+  useEffect(() => {
+    let cancelled = false
+    const check = (): void => {
+      void dhStatus()
+        .then((s) => { if (!cancelled) setBridgeDh(s?.enabled === true) })
+        .catch(() => { if (!cancelled) setBridgeDh(false) })
+    }
+    check()
+    const onChange = (): void => { window.setTimeout(check, 200) }
+    window.addEventListener(DH_CHANGE_EVENT, onChange)
+    return () => {
+      cancelled = true
+      window.removeEventListener(DH_CHANGE_EVENT, onChange)
+    }
+  }, [])
+
+  // Stream new complete sentences to TTS on every snapshot change. In digital
+  // human mode the reply is NOT spoken immediately — its full text goes to the
+  // bridge, which renders a lip-synced video (with the TTS audio embedded);
+  // the companion window plays video + sound together once it is ready.
+  useEffect(() => {
+    if (!voiceEnabled()) return
+    const userAnchor = Math.max(0, ...chatNodes(chat).filter(n => n.kind === 'user').map(n => n.anchorSeq))
+    if (interruptedUser.current !== null && userAnchor <= interruptedUser.current) return
+    interruptedUser.current = null
+
+    // 桥接开关尚未确认：先不朗读也不提交视频，等 dhStatus 返回（桥接不可达时
+    // 按非 DH 处理，回复仍会 TTS 朗读）。确认后 setBridgeDh 触发重渲染，等待
+    // 窗口期到达的回复会按正确的 dhMode 处理。
+    if (bridgeDh === null) return
+    const dhMode = bridgeDh && companionVisible() && readDigitalHuman()
+
+    // Barge-in swallowed the CURRENT reply: remember its exact anchor so only
+    // that reply's remaining sentences are skipped; replies that appear
+    // later (or that already appeared) still speak. In DH mode, discard the
+    // pending video task (the reply is being talked over).
+    if (interruptRef.current) {
+      if (dhMode) dhDiscard(lastDhCodeRef.current)
+      let maxAnchor = 0
+      for (const node of chatNodes(chat)) {
+        if (node.kind === 'assistant-step' && node.anchorSeq > maxAnchor) maxAnchor = node.anchorSeq
+      }
+      if (maxAnchor > 0) skipAnchorRef.current = maxAnchor
+      interruptRef.current = false
+      return
+    }
+
+    // First settled assistant node arrives: freeze the history baseline so
+    // pre-existing replies never replay (page load, session revisit, history
+    // pagination). Running nodes are live replies — they are NOT used here,
+    // so a fresh reply in a new session still speaks.
+    if (baselineRef.current === null) {
+      let maxAnchor = 0
+      let hasSettled = false
+      for (const node of chatNodes(chat)) {
+        if (node.kind !== 'assistant-step') continue
+        const data = assistantData(node)
+        if (data === undefined) continue
+        if (data.status === 'settled') hasSettled = true
+        if (node.anchorSeq > maxAnchor) maxAnchor = node.anchorSeq
+      }
+      if (hasSettled && maxAnchor > 0 && !liveSeen.current) {
+        baselineRef.current = maxAnchor
+        skipUntilRef.current = maxAnchor
+        return
+      }
+      // A first live reply is not historical content. Waiting for it to
+      // settle would incorrectly mark the user's first answer as replay.
+      const hasLiveReply = chatNodes(chat).some(node => assistantData(node)?.status === 'running')
+      if (!hasLiveReply && !liveSeen.current) return
+      baselineRef.current = 0
+    }
+
+    if (dhMode) {
+      // New user turn after a DH-submitted reply: the pending video is stale.
+      for (const node of chatNodes(chat)) {
+        if (node.kind !== 'user') continue
+        if (node.anchorSeq <= lastUserAnchorRef.current) continue
+        lastUserAnchorRef.current = node.anchorSeq
+        if (lastDhReplyAnchorRef.current > 0 && node.anchorSeq > lastDhReplyAnchorRef.current) {
+          dhDiscard(lastDhCodeRef.current)
+        }
+      }
+      // Submit settled, fully-streamed replies' full text to the bridge.
+      // No sentence TTS here — the video carries the audio; the companion
+      // window plays it (TTS + talking-head together) when generation ends.
+      // Per USER turn, deliver only the FIRST and the LAST settled assistant
+      // texts. A user turn spans one user node to the next; an agent reply
+      // (first answer A -> tool call -> final answer B) is ONE user turn, so
+      // both A and B are spoken, while every intermediate text — tool-call
+      // output, transitional chatter, mid-work updates — never spawns a video.
+      // (Pure chat turns have first === last and deliver once.)
+      const userAnchors: number[] = []
+      for (const node of chatNodes(chat)) {
+        if (node.kind === 'user') userAnchors.push(node.anchorSeq)
+      }
+      userAnchors.sort((a, b) => a - b)
+      type TurnPick = { node: { key: string; anchorSeq: number }; data: AssistantChatData; anchor: number }
+      const perUserTurn = new Map<number, { first: TurnPick; last: TurnPick }>()
+      for (const node of chatNodes(chat)) {
+        if (node.kind !== 'assistant-step') continue
+        const data = assistantData(node)
+        if (data === undefined || data.status !== 'settled') continue
+        const text = cleanReplyText(nodeText(data), 100000)
+        if (text.trim().length < 2) continue
+        // The user turn this reply belongs to = nearest preceding user anchor.
+        let ua = -1
+        for (const u of userAnchors) {
+          if (u < node.anchorSeq) ua = u
+          else break
+        }
+        const pick: TurnPick = { node, data, anchor: node.anchorSeq }
+        const slot = perUserTurn.get(ua)
+        if (slot === undefined) {
+          perUserTurn.set(ua, { first: pick, last: pick })
+        } else {
+          if (node.anchorSeq < slot.first.anchor) slot.first = pick
+          if (node.anchorSeq > slot.last.anchor) slot.last = pick
+        }
+      }
+      const submitDh = (pick: TurnPick): void => {
+        const base = baselineRef.current
+        if (base !== null && pick.anchor <= base) return
+        if (pick.anchor === skipAnchorRef.current) return
+        if (dhSentRef.current.has(pick.node.key)) return
+        const text = cleanReplyText(nodeText(pick.data), 100000)
+        if (text.trim().length < 2) return
+        dhSentRef.current.add(pick.node.key)
+        lastDhReplyAnchorRef.current = pick.anchor
+        void dhSpeak(text).then((code) => {
+          if (code !== null) lastDhCodeRef.current = code
+        })
+      }
+      for (const [ua, { first, last }] of perUserTurn) {
+        // FIRST segment: submit immediately (it is settled and will not change).
+        submitDh(first)
+        if (first.node.key === last.node.key) {
+          // Pure chat turn (no tool-call churn): first === last, nothing else.
+          const existing = dhLastDebounceRef.current.get(ua)
+          if (existing !== undefined) {
+            clearTimeout(existing.timer)
+            dhLastDebounceRef.current.delete(ua)
+          }
+          continue
+        }
+        // LAST segment: debounce — replace the candidate (reset the timer) on
+        // every new settled text so an intermediate text never gets submitted;
+        // only a 4s-quiet turn submits its final segment.
+        const existing = dhLastDebounceRef.current.get(ua)
+        if (existing !== undefined) clearTimeout(existing.timer)
+        const timer = setTimeout(() => {
+          dhLastDebounceRef.current.delete(ua)
+          submitDh(last)
+        }, LAST_DEBOUNCE_MS)
+        dhLastDebounceRef.current.set(ua, { timer, anchor: last.anchor })
+      }
+      return
+    }
+
+    // Non-DH mode: collect the complete sentences that are new (beyond each
+    // node's spoken count), in (anchor, index) order. A SETTLED node also
+    // flushes its trailing partial (the reply ended without a terminal
+    // punctuation, like a credit line); running nodes wait for the partial.
+    // Speak a short live acknowledgement, then the final answer. Tool-stage
+    // narration is still in the transcript but cannot build a minutes-long queue.
+    const turnNodes = chatNodes(chat).filter(node => node.anchorSeq > userAnchor && assistantData(node) !== undefined && nodeText(assistantData(node)!).trim().length > 0)
+    const firstAnchor = Math.min(...turnNodes.map(node => node.anchorSeq))
+    const lastAnchor = Math.max(...turnNodes.map(node => node.anchorSeq))
+    const jobs: { anchor: number; key: string; index: number; sentence: string }[] = []
+    for (const node of chatNodes(chat)) {
+      if (node.kind !== 'assistant-step') continue
+      if (node.anchorSeq <= skipUntilRef.current || node.anchorSeq <= userAnchor) continue
+      if (node.anchorSeq !== (sessionRunning ? firstAnchor : lastAnchor)) continue
+      if (node.anchorSeq === skipAnchorRef.current) continue
+      const data = assistantData(node)
+      if (data === undefined || data.status === 'interrupted') continue
+      const { sentences, partial } = splitSentences(cleanReplyText(nodeText(data), 100000))
+      const available = data.status === 'settled' && partial !== null ? [...sentences, partial] : sentences
+      const speakable = sessionRunning ? available.slice(0, 2) : available
+      const spoken = spokenRef.current.get(node.key) ?? 0
+      if (speakable.length > spoken) {
+        for (let i = spoken; i < speakable.length; i++) {
+          jobs.push({ anchor: node.anchorSeq, key: node.key, index: i, sentence: speakable[i]! })
+        }
+        spokenRef.current.set(node.key, speakable.length)
+      }
+    }
+    if (jobs.length === 0) return
+    jobs.sort((a, b) => (a.anchor - b.anchor) || (a.index - b.index))
+
+    // Chain the fetches serially (order preserved; playback pipelines via the
+    // speaker queue). Each step re-checks voice/interrupt so an abort stops
+    // the rest of the chain.
+    const generation = epoch.current
+    chainRef.current = jobs.reduce(
+      (chain, job) => chain.then(() => {
+        if (generation !== epoch.current || interruptRef.current || !voiceEnabled()) return
+        const controller = new AbortController()
+        activeRequest.current = controller
+        _registerTtsAbort(controller)
+        return tts(job.sentence, controller.signal)
+          .then((wav) => {
+            if (generation !== epoch.current || interruptRef.current || !voiceEnabled()) return
+            speaker.speak(wav)
+          })
+          .catch((err) => {
+            if ((err as Error | undefined)?.name !== 'AbortError') {
+              console.error('[ui-voice] reply TTS failed:', err)
+            }
+          })
+          .finally(() => { if (activeRequest.current === controller) { activeRequest.current = null; _registerTtsAbort(null) } })
+      }),
+      chainRef.current,
+    )
+  }, [chat, speaker, _registerTtsAbort, bridgeDh, sessionRunning])
+
+  return null
+})

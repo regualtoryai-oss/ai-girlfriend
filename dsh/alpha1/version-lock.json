@@ -11,45 +11,7 @@
   "voicePlugin": {
     "repository": "https://github.com/beiyege-01/dsh-voice-ai-girlfriend",
     "manifestVersion": "0.3.0",
-    "status": "manifest inspected; plugin not installed or tested"
+    "status": "Current local source published in integrations/dsh-ui-voice; author profile rebuilt by Setup-Harness.ps1"
   },
-  "upgradePolicy": "Pinned. No automatic latest updates; upgrade only after author compatibility and separate validation.",
-  "proof": {
-    "runtime": "@deepseek-ai/dsh@0.1.3-alpha.1 (official source)",
-    "profile": "sdk",
-    "home": "D:\\Companion-Agent\\data\\dsh-home-alpha1",
-    "workspace": "D:\\Companion-Agent\\workspaces\\dsh-alpha1-proof-1790833164015",
-    "live": true,
-    "stage": "artifact-verified",
-    "tools": [
-      "companion_write_note"
-    ],
-    "telemetryDisabled": true,
-    "serverInfo": {
-      "name": "deepseek-harness-sdk-runtime",
-      "version": "0.0.1"
-    },
-    "artifact": {
-      "path": "D:\\Companion-Agent\\workspaces\\dsh-alpha1-proof-1790833164015\\companion-note.md",
-      "bytes": 59,
-      "sha256": "ca9be49d4aa763463e074efc5841f3931101380f117da21d99d5595ecc12f6e5"
-    },
-    "eventTypes": [
-      "permission/preset",
-      "sandbox/mode",
-      "approval/policy",
-      "agent/inbox/spliced",
-      "turn/start",
-      "step/start",
-      "user/message",
-      "session/title",
-      "request/header",
-      "request/context",
-      "assistant/message",
-      "tool/call",
-      "tool/result",
-      "step/end",
-      "turn/end"
-    ]
-  }
+  "upgradePolicy": "Pinned. No automatic latest updates; upgrade only after author compatibility and separate validation."
 }

@@ -1,12 +1,53 @@
 node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
 vendor/
 data/
 logs/
 cache/
 profiles/
+backups/
+models/
+unused/
 config/*.local.*
+providers.json
+usage-budget.json
+verified-prices.json
+bridge-config.json
+credentials.json
 .env*
 !.env.example
+# Local authentication URLs, credentials and private keys.
+*-launch-url.txt
+*.pem
+*.key
+*.p12
+*.pfx
+# Media are published only through explicit file exceptions below.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.safetensors
+*.pt
+*.pth
+*.onnx
 public/assets/*
 !public/assets/manifest.json
 evidence/
@@ -17,3 +58,20 @@ runtime/
 workspaces/
 
 build-tools/
+_logs/
+_update-notifier-*
+.venv-files/
+
+# Current approved portrait and six motion presets. The former Ditto idle.mp4
+# remains ignored; offline generated demonstration clips remain outside release.
+!public/assets/portrait.png
+!public/assets/investor-preview-v1/
+public/assets/investor-preview-v1/*
+!public/assets/investor-preview-v1/poster.jpg
+!public/assets/investor-preview-v1/idle.mp4
+!public/assets/investor-preview-v1/listening.mp4
+!public/assets/investor-preview-v1/thinking.mp4
+!public/assets/investor-preview-v1/speaking.mp4
+!public/assets/investor-preview-v1/smile.mp4
+!public/assets/investor-preview-v1/quiet-v2.mp4
+!public/assets/investor-preview-v1/manifest.json

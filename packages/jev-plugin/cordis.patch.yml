@@ -1,0 +1,6 @@
+- insert:
+    - id: companion-jev
+      name: '@ai-girlfriend/jev-plugin'
+      config:
+        enabled: true
+        timeoutMs: 2500

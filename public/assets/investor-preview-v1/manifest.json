@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "kind": "cached-video-presets",
+  "character": "User-approved fictional adult woman with long black hair, a cream camisole, a flower pendant and a warm indoor background",
+  "source": "Existing approved local action-video cuts used by the current author VoiceBridge UI; copied byte-for-byte",
+  "publicationAuthorization": "User explicitly requested the same running character and necessary assets in this GitHub delivery",
+  "liveLipSync": false,
+  "phonemeSynchronized": false,
+  "audioRemovedFromEveryVideo": true,
+  "mode": "Muted preset playback from cached video; it follows lifecycle states and is not synchronized to newly generated speech",
+  "route": "/media/task-videos/investor-preview-v1/",
+  "files": [
+    {"path":"poster.jpg","bytes":31978,"sha256":"462ee85edd3cf465bc22b0d230490c65b6a1ebd8d4bf5c2ce368b03ed63ca3f0","width":720,"height":960},
+    {"path":"idle.mp4","bytes":706601,"sha256":"04d47b8500ade4525ca1dcb1542306087421966392bf67e0f8466dba39dd4657","width":720,"height":960,"durationSeconds":3.208008,"audioStreams":0},
+    {"path":"listening.mp4","bytes":706601,"sha256":"04d47b8500ade4525ca1dcb1542306087421966392bf67e0f8466dba39dd4657","width":720,"height":960,"durationSeconds":3.208008,"audioStreams":0},
+    {"path":"thinking.mp4","bytes":760561,"sha256":"f85c75b066bad458464ea19ee6e8a72879288ef28fc8343c9f10cadfc772a18d","width":720,"height":960,"durationSeconds":3.833333,"audioStreams":0},
+    {"path":"speaking.mp4","bytes":1248841,"sha256":"813d296fa635a0f02041176f96cf56ff651d52584d30d48a0567fd6fd30c2fbe","width":720,"height":960,"durationSeconds":6.208333,"audioStreams":0},
+    {"path":"smile.mp4","bytes":691634,"sha256":"97ea92dea7336986bd80806be156b2452ade52242b7f5820e14efb6b8c0ac92c","width":720,"height":960,"durationSeconds":3.5,"audioStreams":0},
+    {"path":"quiet-v2.mp4","bytes":617905,"sha256":"7831062fb6f78fd45693d8232fbdcde82ad97d8dc1362d6281f85005520fed05","width":720,"height":960,"durationSeconds":3.583008,"audioStreams":0}
+  ],
+  "playback": {
+    "quietLoop": "quiet-v2.mp4",
+    "gestureCooldownSeconds": 20,
+    "gestureFiles": ["listening.mp4", "speaking.mp4"],
+    "pauseShowsPoster": true,
+    "missingMediaShowsFailure": true
+  }
+}

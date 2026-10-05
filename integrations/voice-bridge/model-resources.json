@@ -1,0 +1,114 @@
+{
+  "format": 1,
+  "weights_are_not_bundled": true,
+  "sources": {
+    "funasr": {
+      "repository": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+      "provider": "ModelScope",
+      "recorded_by_cordis_commit": "480bbabada7335735cad591eaa55f32fe54a4214",
+      "identity": "Verify hashes; the original source manifest does not claim a pinned snapshot."
+    },
+    "tts": {
+      "repository": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+      "revision": "85e237c12c027371202489a0ec509ded67b5e4b5",
+      "provider": "Hugging Face"
+    },
+    "vad": {
+      "repository": "snakers4/silero-vad",
+      "variant": "v4 JIT, currently installed artifact",
+      "identity": "Exact current artifact recorded by SHA-256; install the supplied local artifact or a hash-identical copy."
+    }
+  },
+  "files": [
+    {
+      "path": "models/funasr/paraformer-large-zh/am.mvn",
+      "bytes": 11203,
+      "sha256": "29b3c740a2c0cfc6b308126d31d7f265fa2be74f3bb095cd2f143ea970896ae5"
+    },
+    {
+      "path": "models/funasr/paraformer-large-zh/config.yaml",
+      "bytes": 2509,
+      "sha256": "bfd424b9f61846aac63591e96fe24d66b35f4643bddcb4b9bb759db8f987ab79"
+    },
+    {
+      "path": "models/funasr/paraformer-large-zh/configuration.json",
+      "bytes": 472,
+      "sha256": "b7d2917954fc547e43ad61486a5248596738cf5909907eade11e71c56f446f34"
+    },
+    {
+      "path": "models/funasr/paraformer-large-zh/model.pt",
+      "bytes": 880502012,
+      "sha256": "5bba782a5e9196166233b9ab12ba04cadff9ef9212b4ff6153ed9290ff679025"
+    },
+    {
+      "path": "models/funasr/paraformer-large-zh/seg_dict",
+      "bytes": 8287834,
+      "sha256": "59a2ef803a3f1648ad03a2e1480db1c1ee0c0d7dc4ef4dbd16cea33944329022"
+    },
+    {
+      "path": "models/funasr/paraformer-large-zh/tokens.json",
+      "bytes": 93676,
+      "sha256": "2b20c2b12572d682afff84ce1c8d560f67b8b32a4c1f21567411d141ed352127"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/config.json",
+      "bytes": 4908,
+      "sha256": "81aca2b6fac304944d8acf345272d8a9a727d5fc2e2e66b222ab4729340c7455"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/generation_config.json",
+      "bytes": 245,
+      "sha256": "f1b90b4513f3b34c62851049e2492d7b4c5940daf1276f89c82b8ef04127f3aa"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/merges.txt",
+      "bytes": 1671839,
+      "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/model.safetensors",
+      "bytes": 1811626576,
+      "sha256": "bc3c7e785eb961179c25450d1acff03f839e0002f2f3a5aeb67b5735c0fa2adb"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/preprocessor_config.json",
+      "bytes": 127,
+      "sha256": "efdde1022ea9d76928bf7a9cd53139138f5ba2e466e837f08f6105ab1af1c119"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/speech_tokenizer/config.json",
+      "bytes": 2336,
+      "sha256": "ee65bb901c876664ab8707c487157aa1a6ee57c65969b28fb5ec9dc211e68167"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/speech_tokenizer/configuration.json",
+      "bytes": 76,
+      "sha256": "6bc26d64eb5024b4d1dab5a52371958b429256d6c9d59787f1f5294a54e0cebd"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/speech_tokenizer/model.safetensors",
+      "bytes": 682293092,
+      "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/speech_tokenizer/preprocessor_config.json",
+      "bytes": 234,
+      "sha256": "fcb3805e597e786d4067706e602f6688524640f8d3396790e2e09b5942fcbdfb"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/tokenizer_config.json",
+      "bytes": 7344,
+      "sha256": "dc3c31c3bdaedd5016382bb3cbe07323026775ad51f5a4fb564505992ae4a670"
+    },
+    {
+      "path": "models/qwen3-tts-0.6b-customvoice/vocab.json",
+      "bytes": 2776833,
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    },
+    {
+      "path": "models/silero-vad/silero_vad_v4.jit",
+      "bytes": 1439299,
+      "sha256": "082e21870cf7722b0c7fa5228eaed579efb6870df81192b79bed3f7bac2f738a"
+    }
+  ]
+}

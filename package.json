@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server/app.mjs",
+    "start": "node dsh/author/start.mjs",
+    "start:legacy": "node server/app.mjs",
     "test": "node --test server/*.test.mjs"
   },
   "engines": {

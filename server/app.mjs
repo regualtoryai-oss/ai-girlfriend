@@ -3,11 +3,13 @@ import {readFile,stat} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
+import {AgentJobs} from './agent-jobs.mjs';
 import {Jobs,validId} from './jobs.mjs';
 import {createSafeLogger} from './logger.mjs';
 import {createConfigStore,createAdminSessions} from './admin.mjs';
 import {createConfiguredProviders} from './providers.mjs';
 import {createHarnessAdapter} from './harness-adapter.mjs';
+import {createVoiceRuntime} from './voice-runtime.mjs';
 const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.mp4':'video/mp4','.json':'application/json','.md':'text/markdown; charset=utf-8'};
 const fault=(status,message)=>Object.assign(new Error(message),{status});
@@ -15,22 +17,35 @@ async function body(req){if(!/^application\/json(?:;|$)/i.test(req.headers['cont
 export function createApp({dataRoot=path.join(projectRoot,'data'),publicRoot=path.join(projectRoot,'public'),adapters={},logger=()=>{},beforeCommit,allowExternalCalls=false}={}){
  dataRoot=path.resolve(dataRoot);publicRoot=path.resolve(publicRoot);
  const jobs=new Jobs(path.join(dataRoot,'tasks'),beforeCommit,allowExternalCalls&&adapters.harness?.configured?adapters.harness:null),log=createSafeLogger(logger),turns=new Map();
+ const agentJobs=allowExternalCalls&&adapters.harness?.execute?new AgentJobs(dataRoot,adapters.harness):null;
  const config=createConfigStore(dataRoot),admin=createAdminSessions();
  const configured=a=>a?.configured===true;
- const status=()=>({app:'companion-agent-preview',executor:jobs.adapter?'deepseek-harness':'bounded-local-file',harness:jobs.adapter?'ready':'not-connected',harnessVersion:jobs.adapter?.version||null,harnessState:jobs.adapter?.state||null,jev:configured(adapters.jev)?'configured-not-executing':'not-connected',llm:configured(adapters.chat)?(allowExternalCalls?'ready':'configured-calls-disabled'):'not-connected',voice:'not-connected',microphone:false,externalCallsAuthorized:allowExternalCalls,providers:adapters.state||null});
+ const status=()=>({app:'companion-agent-preview',executor:jobs.adapter?'deepseek-harness':'bounded-local-file',harness:jobs.adapter?'ready':'not-connected',harnessVersion:jobs.adapter?.version||null,harnessState:jobs.adapter?.state||null,jev:adapters.harness?.jevConfigured?(adapters.harness.state.jev.connected?'ready':'configured-not-tested'):'not-connected',llm:configured(adapters.chat)?(allowExternalCalls?'ready':'configured-calls-disabled'):'not-connected',voice:adapters.voice?.ready?'ready':'not-connected',voiceState:adapters.voice?.state||null,microphone:false,externalCallsAuthorized:allowExternalCalls,conversation:agentJobs?'ready':'not-connected',workspaceScope:'isolated-workspace',providers:adapters.state||null});
  const handler=async(req,res)=>{const requestId=validId(req.headers['x-request-id'])?req.headers['x-request-id']:randomUUID();res.setHeader('X-Request-Id',requestId);
-  const json=(code,data)=>{if(res.destroyed||res.writableEnded)return;log('http.response',{requestId,status:code});res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify({...data,requestId}));};
+  const json=(code,data)=>{if(res.destroyed||res.writableEnded)return;log('http.response',{requestId,status:code});res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify({requestId,...data}));};
   try{
    const port=req.socket.localPort,origin=`http://127.0.0.1:${port}`;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
    if(req.headers.host!==`127.0.0.1:${port}`)return json(403,{error:'Local host required'});
    if(req.headers.origin&&req.headers.origin!==origin)return json(403,{error:'Same origin required'});
    const p=new URL(req.url,origin).pathname;
+   if(adapters.voice&&await adapters.voice.handle(req,res,p))return;
+
+   if(p==='/api/conversation'&&req.method==='POST'){if(!agentJobs)return json(503,{error:'执行服务尚未连接'});if(req.headers.origin!==origin)return json(403,{error:'需要同源对话请求'});const input=await body(req);if(input.history!==undefined&&!Array.isArray(input.history))return json(400,{error:'Invalid history'});return json(202,agentJobs.public(agentJobs.create({...input,requestId})));}
+   if(p==='/api/workspace'&&req.method==='GET'){if(!agentJobs)return json(503,{error:'工作区未连接'});return json(200,{scope:'isolated-workspace',files:agentJobs.files.list()});}
+   const agentPath=p.match(/^\/api\/conversations\/([a-f0-9-]{36})(?:\/(approve|amend|cancel))?$/i);
+   if(agentPath){if(!agentJobs)return json(503,{error:'执行服务尚未连接'});const [,id,action]=agentPath;if(!action&&req.method==='GET'){const j=agentJobs.jobs.get(id);return json(j?200:404,agentJobs.public(j)||{error:'未找到这次对话'});}if(req.method!=='POST'||req.headers.origin!==origin)return json(403,{error:'需要同源确认'});const input=await body(req);const j=action==='approve'?agentJobs.approve(id,input):action==='amend'?agentJobs.amend(id,input.text):action==='cancel'?agentJobs.cancel(id):null;return json(j?200:404,agentJobs.public(j)||{error:'未找到任务'});}
+   const download=p.match(/^\/api\/conversation-files\/([a-f0-9-]{36})$/i);
+   if(download&&req.method==='GET'){const a=agentJobs?.artifact(download[1]);if(!a)return json(404,{error:'文件不存在'});const bytes=await readFile(a.file);res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(a.name)}`,'Content-Length':bytes.length});return res.end(bytes);}
    if(p==='/api/status'&&req.method==='GET')return json(200,status());
    if(p==='/api/admin/bootstrap'&&req.method==='GET')return json(200,{...admin.bootstrap(req,res),providers:config.metadata()});
    if(p==='/api/admin/config'&&req.method==='GET'){admin.validate(req);return json(200,{providers:config.metadata()});}
    if(p==='/api/admin/config'&&req.method==='POST'){
-    if(req.headers.origin!==origin)return json(403,{error:'Explicit same origin required'});admin.validate(req);const input=await body(req);return json(200,{providers:config.save(input),saved:true,connectionTested:false});
+    if(req.headers.origin!==origin)return json(403,{error:'Explicit same origin required'});admin.validate(req);const input=await body(req);const providers=config.save(input);let discovery=null;if(input.provider==='relay'&&!input.clear&&allowExternalCalls){try{discovery=await config.discoverRelay();}catch{discovery={error:'MODEL_DISCOVERY_FAILED',generationRequests:0};}}return json(200,{providers:discovery?.providers||providers,saved:true,connectionTested:false,discovery});
+   }
+   if(p==='/api/admin/relay-discover'&&req.method==='POST'){if(req.headers.origin!==origin||!allowExternalCalls)return json(403,{error:'Explicit same origin required'});admin.validate(req);return json(200,await config.discoverRelay());}
+   if(p==='/api/admin/relay-test'&&req.method==='POST'){
+    if(req.headers.origin!==origin)return json(403,{error:'Explicit same origin required'});admin.validate(req);const input=await body(req);if(!allowExternalCalls||input.confirmMeteredRequests!==true)return json(403,{error:'需要用户明确确认最多两次小额生成测试'});return json(200,await config.testRelay());
    }
    if(p==='/api/admin/test'&&req.method==='POST'){
     if(req.headers.origin!==origin)return json(403,{error:'Explicit same origin required'});admin.validate(req);return json(503,{error:'连接测试适配器尚未启用；没有发出任何模型请求。'});
@@ -62,11 +77,12 @@ export function createApp({dataRoot=path.join(projectRoot,'data'),publicRoot=pat
    res.writeHead(200,{'Content-Length':data.length});res.end(req.method==='HEAD'?undefined:data);
   }catch(e){json(e.status||(e.code==='ENOENT'?404:500),{error:e.status?e.message:'资源暂不可用'});}
  };
- return Object.assign(handler,{jobs,status,dataRoot,close(){jobs.close();for(const t of turns.values())t.controller.abort();}});
+ return Object.assign(handler,{jobs,agentJobs,status,dataRoot,close(){agentJobs?.close();jobs.close();for(const t of turns.values())t.controller.abort();}});
 }
 export function createServer(options={}){const app=createApp(options),server=http.createServer(app);server.app=app;server.on('close',()=>app.close());return server;}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const port=Number(process.env.COMPANION_PORT||8793);if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid port');
- const dataRoot=path.join(projectRoot,'data');const providers=createConfiguredProviders(dataRoot);const harness=createHarnessAdapter(projectRoot,dataRoot);const adapters={chat:harness,harness,jev:providers.jev,state:{harness:harness.state,jev:{connected:false,status:'plugin-integration-pending'}}};
- const server=createServer({dataRoot,adapters,allowExternalCalls:true});server.listen(port,'127.0.0.1',()=>console.log(`Companion preview http://127.0.0.1:${port} | Harness 0.1.3-alpha.1 | isolated chat/task runtimes | no microphone`));
+ const dataRoot=path.join(projectRoot,'data');const providers=createConfiguredProviders(dataRoot);const harness=createHarnessAdapter(projectRoot,dataRoot);const adapters={chat:harness,harness,jev:providers.jev,state:{harness:harness.state,jev:harness.state.jev}};adapters.voice=createVoiceRuntime(projectRoot,dataRoot,harness,port);adapters.voice.health().catch(()=>{});
+ const server=createServer({dataRoot,adapters,allowExternalCalls:true});
+ for(const sig of ['SIGINT','SIGTERM'])process.on(sig,()=>{adapters.voice.close();server.app.close();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),1500).unref();});server.listen(port,'127.0.0.1',()=>console.log(`Companion preview http://127.0.0.1:${port} | Harness 0.1.3-alpha.1 | isolated chat/task runtimes | no microphone`));
 }

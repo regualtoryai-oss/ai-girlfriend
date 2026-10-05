@@ -1,0 +1,48 @@
+{
+  "host": "127.0.0.1",
+  "port": 8765,
+  "cors_origins": ["http://127.0.0.1:8796"],
+  "stt": {
+    "backend": "funasr",
+    "model_name": "../../models/funasr/paraformer-large-zh",
+    "vad_model": "../../models/silero-vad/silero_vad_v4.jit",
+    "device": "cuda",
+    "torch_dtype": "float32",
+    "language": "zh"
+  },
+  "tts": {
+    "model_name": "../../models/qwen3-tts-0.6b-customvoice",
+    "device": "cuda",
+    "dtype": "bfloat16",
+    "attn_implementation": "eager",
+    "ref_audio": null,
+    "ref_text": "",
+    "language": "zh",
+    "speaker": "Serena",
+    "xvec_only": false,
+    "parity_mode": false,
+    "non_streaming_mode": true,
+    "max_new_tokens": 512,
+    "blocksize": 512
+  },
+  "media": {
+    "bg_images_dir": "assets/bg-images",
+    "task_videos_dir": "../../public/assets"
+  },
+  "voices_dir": "voices",
+  "deepseek": {"enabled": false},
+  "qq": {"enabled": false},
+  "digital_human": {
+    "enabled": false,
+    "data_dir": "../../runtime/voice-data",
+    "temp_dir": "temp",
+    "avatar_video": "",
+    "stop_container_on_disable": false
+  },
+  "omnivoice": {"base": ""},
+  "persona": {
+    "default_voice": "",
+    "default_avatar": "",
+    "default_idle": "default"
+  }
+}

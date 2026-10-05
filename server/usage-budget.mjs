@@ -1,0 +1,11 @@
+import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync} from 'node:fs';import path from 'node:path';import {randomUUID} from 'node:crypto';
+const fail=code=>Object.assign(new Error(code),{code,status:403});
+export class UsageBudget{
+ constructor(file){this.file=file;}
+ read(){return existsSync(this.file)?JSON.parse(readFileSync(this.file,'utf8')):{authorized:false,limit:0,unit:null,entries:[]};}
+ save(s){mkdirSync(path.dirname(this.file),{recursive:true});writeFileSync(this.file+'.tmp',JSON.stringify(s),{mode:0o600});renameSync(this.file+'.tmp',this.file);}
+ status(){const s=this.read();return {authorized:s.authorized===true,unit:s.unit,limit:s.limit,reserved:s.entries.reduce((n,e)=>n+e.maximum,0)};}
+ reserve({model,inputTokens,outputTokens,imageCount=0,quote}){const s=this.read();if(!s.authorized)throw fail('BUDGET_APPROVAL_PENDING');if(!quote||quote.unit!==s.unit||!quote.verified||quote.model!==model||!Number.isFinite(quote.groupMultiplier)||quote.groupMultiplier<1)throw fail('PRICE_NOT_VERIFIED');if(!Number.isInteger(inputTokens)||inputTokens<0||!Number.isInteger(outputTokens)||outputTokens<0||!Number.isInteger(imageCount)||imageCount<0)throw fail('INVALID_USAGE_BOUND');const maximum=((inputTokens*quote.inputPerMillion+outputTokens*quote.outputPerMillion)/1e6+imageCount*(quote.perImage||0))*quote.groupMultiplier;if(!Number.isFinite(maximum)||maximum<=0||imageCount&&!(quote.perImage>0))throw fail('PRICE_NOT_VERIFIED');if(s.entries.reduce((n,e)=>n+e.maximum,0)+maximum>s.limit)throw fail('BUDGET_LIMIT');const entry={id:randomUUID(),model,inputTokens,outputTokens,imageCount,maximum,state:'reserved',time:new Date().toISOString()};s.entries.push(entry);this.save(s);return entry;}
+ settle(id,{usage,httpStatus}){const s=this.read(),e=s.entries.find(x=>x.id===id);if(!e)throw fail('UNKNOWN_RESERVATION');e.state='finished';e.httpStatus=httpStatus;e.reportedUsage={};for(const k of ['prompt_tokens','completion_tokens','total_tokens'])if(Number.isFinite(usage?.[k]))e.reportedUsage[k]=usage[k];this.save(s);}
+ // Timeouts/errors retain their reservation because remote computation may bill.
+}

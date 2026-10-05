@@ -1,0 +1,14 @@
+{
+  "speech_to_speech-0.2.10-py3-none-any.whl": {
+    "sha256": "dc06a1f08237584aa9d35bbe3a376bf25eb0a3a6317306b20047a62aff606f7c",
+    "source_differences": []
+  },
+  "faster_qwen3_tts-0.2.6-py3-none-any.whl": {
+    "sha256": "3881a41dc189f0a6e93fa047f376deffeb2fa84e888e7d570f79b3e2267765cc",
+    "source_differences": []
+  },
+  "qwen_tts-0.1.1-py3-none-any.whl": {
+    "sha256": "11a290d8dabc7ef91a90c54478c8ab19b3edb1d85c0882313721892bdc4af15d",
+    "source_differences": []
+  }
+}

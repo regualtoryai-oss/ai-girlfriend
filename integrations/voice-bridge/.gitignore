@@ -1,0 +1,6 @@
+bridge-config.json
+__pycache__/
+logs/
+voices/
+assets/
+temp/

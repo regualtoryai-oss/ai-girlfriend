@@ -1,0 +1,133 @@
+diff --git a/packages/bundle/web-app/cordis.patch.yml b/packages/bundle/web-app/cordis.patch.yml
+index ee02170..e9f7745 100644
+--- a/packages/bundle/web-app/cordis.patch.yml
++++ b/packages/bundle/web-app/cordis.patch.yml
+@@ -447,3 +447,8 @@
+       name: '@deepseek-ai/dsh-agent-presets'
+       config:
+         default: standard
++
++# Author voice/avatar plugin, pinned source 480bbab. Backend is configured separately.
++- insert:
++    - id: ui-voice
++      name: '@deepseek-ai/dsh-client-ui-voice'
+diff --git a/packages/bundle/web-app/package.json b/packages/bundle/web-app/package.json
+index 9531c63..a900925 100644
+--- a/packages/bundle/web-app/package.json
++++ b/packages/bundle/web-app/package.json
+@@ -111,7 +111,8 @@
+     "@deepseek-ai/dsh-workspace": "workspace:^",
+     "@deepseek-ai/schemastery": "workspace:^",
+     "commander": "^15.0.0",
+-    "open": "^11.0.0"
++    "open": "^11.0.0",
++    "@deepseek-ai/dsh-client-ui-voice": "workspace:^"
+   },
+   "peerDependencies": {
+     "@deepseek-ai/cordis-plugin-loader": "workspace:^",
+diff --git a/packages/client/locale/src/locales/en.ts b/packages/client/locale/src/locales/en.ts
+index 70ce315..50ab898 100644
+--- a/packages/client/locale/src/locales/en.ts
++++ b/packages/client/locale/src/locales/en.ts
+@@ -30,7 +30,7 @@ export const en = {
+   'collapse': 'Collapse',
+   'expand': 'Expand',
+   'back': 'Back',
+-  'brand.localBuild': 'DSH Local Build',
++  'brand.localBuild': 'AI Companion Xiaowan',
+   'unknown': 'Unknown',
+   'none': 'None',
+   'truncated': 'Truncated',
+diff --git a/packages/client/locale/src/locales/zh.ts b/packages/client/locale/src/locales/zh.ts
+index 30cee30..600ed4c 100644
+--- a/packages/client/locale/src/locales/zh.ts
++++ b/packages/client/locale/src/locales/zh.ts
+@@ -28,7 +28,7 @@ export const zh = {
+   'collapse': '收起',
+   'expand': '展开',
+   'back': '返回',
+-  'brand.localBuild': 'DSH 本地构建',
++  'brand.localBuild': 'AI女友小婉',
+   'unknown': '未知',
+   'none': '无',
+   'truncated': '已截断',
+diff --git a/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx b/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx
+index dfb515b..acbe37d 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx
+@@ -344,7 +344,7 @@ export function ConversationRoot({
+   })
+ 
+   const composerBar = (
+-    <div className={clsx(css.composerStack, hero && css.composerHero)}>
++    <div className={clsx(css.composerStack, hero && css.composerHero)} data-author-composer-stack>
+       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+       {hero && heroWorkspaceRow}
+       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
+@@ -370,9 +370,9 @@ export function ConversationRoot({
+   )
+ 
+   return (
+-    <div ref={rootResizeRef} className={css.root} data-phase={phase}>
++    <div ref={rootResizeRef} className={css.root} data-phase={phase} data-author-conversation data-pending-interaction={pendingInteraction !== undefined || undefined} data-agent-running={session?.running || undefined}>
+       {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
+-      <div className={css.body}>
++      <div className={css.body} data-author-conversation-body>
+         <div className={css.scrollBody} data-conversation-scroll="">
+           {sessionId === undefined ? null : renderSlot('conversation.session', {})}
+           {composerSeat}
+diff --git a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+index 8747f70..ac2606e 100644
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+@@ -385,7 +385,7 @@ export const InputBar = memo(function InputBar({
+         : planActive ? t('placeholder.plan') : t('placeholder.default'))
+ 
+   return (
+-    <div className={clsx(css.root, variant === 'hero' && css.hero)}>
++    <div className={clsx(css.root, variant === 'hero' && css.hero)} data-author-input-shell>
+       {toast !== null && (
+         <Toast
+           key={toast.seq}
+diff --git a/packages/client/ui-layout/src/client/AppFrame.tsx b/packages/client/ui-layout/src/client/AppFrame.tsx
+index cbef893..6e18f6d 100644
+--- a/packages/client/ui-layout/src/client/AppFrame.tsx
++++ b/packages/client/ui-layout/src/client/AppFrame.tsx
+@@ -34,7 +34,7 @@ function CenterColumn(props: { children?: ReactNode }) {
+ 
+ /** Details column grid item; width 0 keeps the subtree mounted (never unmount on close). */
+ function DetailsColumn(props: { children?: ReactNode }) {
+-  return <div className={css.detailsCol}>{props.children}</div>
++  return <div className={css.detailsCol} data-author-details>{props.children}</div>
+ }
+ 
+ /**
+@@ -176,6 +176,7 @@ export function AppFrame({
+     <div
+       ref={frameRef}
+       className={css.frame}
++      data-author-frame
+       style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
+       data-sidebar-collapsed={sidebarCollapsed || undefined}
+       data-details-collapsed={cols.details === 0 || undefined}
+@@ -185,7 +186,7 @@ export function AppFrame({
+         productTitle={productTitle}
+         {...documentTitle === undefined ? {} : { title: documentTitle }}
+       />
+-      <div className={css.sidebarCol}>
++      <div className={css.sidebarCol} data-author-sidebar>
+         {/* Render-site slot call with live concession output: a closed
+             sidebar keeps the mounted slot at the compact-rail width, and the
+             component sees its rendered state as owner params decided here
+diff --git a/tsconfig.client.json b/tsconfig.client.json
+index c186cfb..d4f5a90 100644
+--- a/tsconfig.client.json
++++ b/tsconfig.client.json
+@@ -38,6 +38,7 @@
+     "packages/client/*/tests/**/*.host.spec.ts"
+   ],
+   "references": [
++    { "path": "./packages/client/ui-voice" },
+     // Shared leaf: web e2e boots the real host webserver (fixture + real-host
+     // smoke policy). webserver has zero workspace deps and no cordis merge,
+     // so it cannot drag host-side Context augmentation into this program.

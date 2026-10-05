@@ -1,0 +1,4 @@
+{
+  "relay": {"baseUrl": "https://newapi1.1234bot.com", "apiKey": ""},
+  "jev": {"baseUrl": "https://api.typesafe.ai", "apiKey": ""}
+}

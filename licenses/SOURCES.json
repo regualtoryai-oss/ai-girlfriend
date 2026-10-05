@@ -1,13 +1,29 @@
 {
   "deepseek-harness": {
     "url": "https://github.com/deepseek-ai/deepseek-harness",
-    "revision": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "tag": "dsh-v0.1.3-alpha.1",
+    "revision": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
     "license": "MIT",
-    "usage": "Fresh isolated source only; not running"
+    "usage": "Pinned source installed by Setup-Harness.ps1; current local UI modifications and voice UI sources are included separately"
   },
-  "local-file-task": {
-    "source": "Prior authorized local prototype; translated deterministic Markdown writer",
-    "execution": "No LLM or shell"
+  "dsh-voice-ai-girlfriend": {
+    "url": "https://github.com/beiyege-01/dsh-voice-ai-girlfriend",
+    "revision": "480bbabada7335735cad591eaa55f32fe54a4214",
+    "license": "Apache-2.0; client scaffold originally derived from MIT DeepSeek Harness. See packaged notices.",
+    "usage": "Original author VoiceBridge and voice client with the current local modifications; attribution retained with packaged source"
   },
-  "assets": "Private local files only; excluded from Git"
+  "decision-core": {
+    "source": "Existing authorized local Cordis/Jev companion decision implementation",
+    "usage": "Published without replacing the original architecture or permission checks"
+  },
+  "assets": {
+    "manifest": "../public/assets/manifest.json",
+    "motionManifest": "../public/assets/investor-preview-v1/manifest.json",
+    "notice": "ASSET-NOTICE.md",
+    "usage": "Original approved character portrait and currently referenced muted preset videos, copied byte-for-byte under the user's explicit publication request"
+  },
+  "voice-models": {
+    "source": "See integrations/voice-bridge model lock and installation instructions",
+    "usage": "Weights and private caches are excluded; the original FunASR and Qwen3 Serena components are retained"
+  }
 }

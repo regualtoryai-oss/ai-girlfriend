@@ -1,0 +1,16 @@
+.stage { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; visibility: visible; background: var(--dsw-alias-bg-base); }
+.stage[hidden] { display: none; }
+.portrait { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.failure { position: absolute; top: 40%; width: 100%; text-align: center; color: var(--dsw-alias-state-error-primary); }
+@media (max-width: 640px) { .portrait { object-position: 63% center; } }
+:global(body:not([data-companion-scene])) .stage { inset: auto 20px 140px auto; width: 240px; height: 330px; border-radius: 20px; }
+
+.motion { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; opacity: 0; transition: opacity 160ms ease; }
+.motion[data-active] { opacity: 1; }
+@media (max-width: 640px) { .motion { object-position: 63% center; } }
+@media (prefers-reduced-motion: reduce) { .motion { transition: none; } }
+
+.player { position: absolute; inset: 0; }
+
+.ambience { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(28px) brightness(.55); }
+@media (max-width: 640px) { .portrait, .motion { object-fit: cover; } }

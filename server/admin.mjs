@@ -1,3 +1,6 @@
+import {UsageBudget} from './usage-budget.mjs';
+import {discoverModelIds} from './capability-catalog.mjs';
+import {relayMetadata,validateRelay,probeRelay} from './relay-config.mjs';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,existsSync} from 'node:fs';
 import path from 'node:path';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
@@ -6,8 +9,9 @@ const origins={deepseek:'https://api.deepseek.com',jev:'https://api.typesafe.ai'
 export function createConfigStore(dataRoot){
  const dir=path.join(dataRoot,'private-config'),file=path.join(dir,'providers.json');
  function read(){if(!existsSync(file))return {};return JSON.parse(readFileSync(file,'utf8'));}
- function metadata(){const stored=read();return Object.fromEntries(Object.keys(origins).map(provider=>{const p=stored[provider]||{};return [provider,{configured:typeof p.apiKey==='string'&&p.apiKey.length>0,baseUrl:p.baseUrl||origins[provider],model:p.model||'',connected:false}];}));}
+ function metadata(){const stored=read();return {...Object.fromEntries(Object.keys(origins).map(provider=>{const p=stored[provider]||{};return [provider,{configured:typeof p.apiKey==='string'&&p.apiKey.length>0,baseUrl:p.baseUrl||origins[provider],model:p.model||'',connected:false}];})),relay:relayMetadata(stored.relay)};}
  function save(input){
+  if(input?.provider==='relay'){const current=read();if(input.clear===true)delete current.relay;else current.relay=validateRelay(input,current.relay);persist(current);return metadata();}
   if(!input||!Object.hasOwn(origins,input.provider)||Object.keys(input).some(k=>!['provider','apiKey','model','baseUrl','clear'].includes(k)))throw fail(400,'Invalid provider configuration');
   if(input.clear!==undefined&&typeof input.clear!=='boolean')throw fail(400,'Invalid clear value');
   const current=read(),old=current[input.provider]||{};
@@ -20,9 +24,12 @@ export function createConfigStore(dataRoot){
    const apiKey=input.apiKey??old.apiKey;if(!apiKey)throw fail(400,'请填写 API Key');
    current[input.provider]={apiKey,model:model.trim(),baseUrl};
   }
-  mkdirSync(dir,{recursive:true,mode:0o700});const tmp=file+'.tmp';writeFileSync(tmp,JSON.stringify(current),{mode:0o600});renameSync(tmp,file);return metadata();
+  persist(current);return metadata();
  }
- return {metadata,save}; // Secret readback is deliberately not part of the public store interface.
+ function persist(value){mkdirSync(dir,{recursive:true,mode:0o700});const tmp=file+'.tmp';writeFileSync(tmp,JSON.stringify(value),{mode:0o600});renameSync(tmp,file);}
+ async function testRelay(){const current=read(),p=current.relay;if(!p)throw fail(400,'Relay not configured');const quotePath=path.join(dataRoot,'private-config/verified-prices.json');const quotes=existsSync(quotePath)?JSON.parse(readFileSync(quotePath,'utf8')):{};const budget=new UsageBudget(path.join(dataRoot,'private-config/usage-budget.json'));const reservations={};for(const c of ['chat','tools']){const model=c==='chat'?p.model:p.taskModel;const quote=quotes[p.baseUrl]?.[model];reservations[c]=budget.reserve({model,inputTokens:1000,outputTokens:64,quote});}const result=await probeRelay(p);for(const c of ['chat','tools'])budget.settle(reservations[c].id,{usage:result[c]?.usage,httpStatus:result[c]?.httpStatus});const latest=read();if(JSON.stringify(latest.relay)!==JSON.stringify(p))throw fail(409,'Configuration changed during test');latest.relay.verification=result;persist(latest);return {results:result,providers:metadata(),externalRequests:2};}
+ async function discoverRelay(){const current=read(),p=current.relay;if(!p)throw fail(400,'Relay not configured');const modelIds=await discoverModelIds(p);const latest=read();if(latest.relay?.apiKey!==p.apiKey||latest.relay?.baseUrl!==p.baseUrl)throw fail(409,'Configuration changed');latest.relay.catalog={modelIds,checkedAt:new Date().toISOString(),source:'authenticated-model-list'};persist(latest);return {providers:metadata(),modelCount:modelIds.length,generationRequests:0};}
+ return {metadata,save,testRelay,discoverRelay}; // Secret readback is deliberately not part of the public store interface.
 }
 export function createAdminSessions(){
  const sessions=new Map();
