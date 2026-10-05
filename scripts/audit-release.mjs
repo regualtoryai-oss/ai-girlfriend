@@ -84,6 +84,8 @@ function inspect(name, content, allowArchive = true) {
       if (category === 'sensitive_literal_assignment' && placeholder.test(match[1])) continue;
       // This rejected-credential fixture is intentionally public test input.
       if (category === 'url_embedded_credentials' && /(?:^|\/)transport\.test\.mjs$/.test(name) && match[0] === 'http:' + '//user:secret@') continue;
+      // An exact rejected loopback URL fixture proves voice uploads stop before fetch.
+      if (category === 'url_embedded_credentials' && /(?:^|\/)task-flow\.spec\.tsx$/.test(name) && match[0] === 'http:' + '//user:secret@') continue;
       findings.push({ path: name, line: text.slice(0, match.index).split('\n').length, category });
     }
   }

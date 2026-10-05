@@ -16,3 +16,8 @@
 .warn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+.status { font-size: 13px; line-height: 1.65; }
+.status p { margin: 0 0 8px; }
+.status ul { margin: 0 0 12px; padding-left: 20px; }
+.status small { display: block; margin-top: 8px; opacity: .75; }
+.status button:disabled { opacity: .6; cursor: default; }

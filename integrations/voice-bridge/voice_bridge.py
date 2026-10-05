@@ -27,6 +27,7 @@ import os
 import subprocess
 import threading
 import time
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -37,6 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from uuid import uuid4
+from voice_diagnostics import collect_readiness
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
@@ -148,13 +150,15 @@ class ModelManager:
             if self._stt is not None:
                 return self._stt
             if self._stt_error is not None:
-                raise HTTPException(status_code=503, detail=f"STT model failed to load: {self._stt_error}")
+                raise HTTPException(status_code=503, detail={"code": "STT_MODEL_LOAD_FAILED", "message": "上次中文识别模型加载失败。", "action": "检查语音准备状态；修复后显式重新检查模型。"})
             try:
                 self._stt = await asyncio.to_thread(_load_stt_handler)
-            except Exception as exc:  # noqa: BLE001 - surfaced to the client
+            except HTTPException:
+                raise
+            except Exception:  # noqa: BLE001 - detailed failure stays in local logs
                 logger.exception("STT model load failed")
-                self._stt_error = f"{type(exc).__name__}: {exc}"
-                raise HTTPException(status_code=503, detail=f"STT model load failed: {self._stt_error}")
+                self._stt_error = "STT_MODEL_LOAD_FAILED"
+                raise HTTPException(status_code=503, detail={"code": self._stt_error, "message": "中文识别模型加载失败。", "action": "检查 NVIDIA 驱动、原版依赖与模型校验；修复后显式重新检查。"})
         return self._stt
 
     async def ensure_tts(self):
@@ -163,19 +167,22 @@ class ModelManager:
             if self._tts is not None:
                 return self._tts
             if self._tts_error is not None:
-                raise HTTPException(status_code=503, detail=f"TTS model failed to load: {self._tts_error}")
+                raise HTTPException(status_code=503, detail={"code": "TTS_MODEL_LOAD_FAILED", "message": "上次 Serena 语音模型加载失败。", "action": "检查语音准备状态；修复后显式重新检查模型。"})
             try:
                 self._tts = await asyncio.to_thread(_load_tts_handler)
-            except Exception as exc:  # noqa: BLE001 - surfaced to the client
+            except HTTPException:
+                raise
+            except Exception:  # noqa: BLE001 - detailed failure stays in local logs
                 logger.exception("TTS model load failed")
-                self._tts_error = f"{type(exc).__name__}: {exc}"
-                raise HTTPException(status_code=503, detail=f"TTS model load failed: {self._tts_error}")
+                self._tts_error = "TTS_MODEL_LOAD_FAILED"
+                raise HTTPException(status_code=503, detail={"code": self._tts_error, "message": "Serena 语音模型加载失败。", "action": "检查 NVIDIA 驱动、CUDA BF16、原版依赖与模型校验；修复后显式重新检查。"})
         return self._tts
 
 
 def _load_stt_handler():
     """Instantiate the configured STT backend: 'funasr' (Chinese ASR, default
     when configured) or the original WhisperSTTHandler fallback."""
+    _require_voice_ready_sync()
     backend = CONFIG["stt"].get("backend", "whisper")
     if backend == "funasr":
         return _load_funasr_handler()
@@ -226,6 +233,7 @@ def _load_funasr_handler():
 
 def _load_tts_handler():
     """Instantiate Qwen3TTSHandler with bridge-config.json['tts'] settings (T3)."""
+    _require_voice_ready_sync()
     from queue import Queue
     from threading import Event
 
@@ -314,21 +322,87 @@ def _transcribe_funasr(model, audio: np.ndarray) -> tuple[str, str | None]:
 
 
 models = ModelManager()
+_readiness_inspection_task: asyncio.Task | None = None
+
+
+def _require_voice_ready_sync() -> dict:
+    report = collect_readiness(config=CONFIG)
+    if not report["voice_ready"]:
+        issue = next(item for item in report["checks"] if item["status"] != "ok")
+        raise HTTPException(status_code=503, detail={key: issue[key] for key in ("code", "message", "action")})
+    return report
+
+
+async def _readiness_report(include_load_errors: bool = True) -> dict:
+    global _readiness_inspection_task
+    # Importing the CUDA runtime can take seconds on cold Windows startup.
+    # Keep HTTP health bounded; this task checks prerequisites only, never models.
+    if _readiness_inspection_task is None or _readiness_inspection_task.done():
+        _readiness_inspection_task = asyncio.create_task(asyncio.to_thread(collect_readiness, config=CONFIG))
+    try:
+        report = deepcopy(await asyncio.wait_for(asyncio.shield(_readiness_inspection_task), timeout=0.15))
+    except asyncio.TimeoutError:
+        report = {"schema_version": 1, "status": "unchecked", "runtime_ready": False, "voice_ready": False, "text_available": False,
+                  "checks": [{"code": "READINESS_CHECK_PENDING", "status": "pending", "message": "正在检查原版语音运行条件。", "action": "稍后重新检查；本次没有加载模型或启动语音推理。"}],
+                  "dependencies": {"missing": [], "mismatched": []}, "gpu": {"cuda": None, "bfloat16": None, "code": "READINESS_CHECK_PENDING"},
+                  "models": {"ready": False, "verified": 0, "required": 18, "files": [], "full_hash": False}, "weights_loaded": False, "network": False}
+    except Exception:
+        report = {"schema_version": 1, "status": "runtime_blocked", "runtime_ready": False, "voice_ready": False, "text_available": False,
+                  "checks": [{"code": "READINESS_CHECK_FAILED", "status": "error", "message": "语音准备检查未能完成。", "action": "运行本地 voice_diagnostics.py --json 查看固定错误提示。"}],
+                  "dependencies": {"missing": [], "mismatched": []}, "gpu": {"cuda": None, "bfloat16": None, "code": "READINESS_CHECK_FAILED"},
+                  "models": {"ready": False, "verified": 0, "required": 18, "files": [], "full_hash": False}, "weights_loaded": False, "network": False}
+    if include_load_errors:
+        for code, error in (("STT_MODEL_LOAD_FAILED", models.stt_error), ("TTS_MODEL_LOAD_FAILED", models.tts_error)):
+            if error:
+                report["checks"].append({"code": code, "status": "error", "message": "上次语音模型加载失败，尚未显式重新检查。", "action": "修复准备状态后，选择重新检查模型；该操作不会加载或推理。"})
+                report["voice_ready"] = False
+                report["status"] = "voice_unavailable" if report["runtime_ready"] else "runtime_blocked"
+    issues = [{key: item[key] for key in ("code", "message", "action")} for item in report["checks"] if item["status"] != "ok"]
+    report["issues"] = issues
+    report["readiness"] = {"status": "unchecked" if report["status"] == "unchecked" else ("ready" if report["voice_ready"] else "blocked"), "checks": [{"code": item["code"], "ok": item["status"] == "ok"} for item in report["checks"]]}
+    if issues:
+        report["readiness"]["code"] = issues[0]["code"]
+    return report
 
 
 @app.get("/api/health")
 async def health() -> dict:
     """Model readiness probe. Overall status is 'ok' once the app serves;
     stt/tts flags reflect lazy model load state (false until first use)."""
+    report = await _readiness_report()
     return {
         "status": "ok",
         "stt": models.stt_ready,
         "stt_backend": CONFIG["stt"].get("backend", "whisper"),
-        "stt_model": Path(CONFIG["stt"]["model_name"]).name,
+        "stt_model": "paraformer-large-zh",
         "tts": models.tts_ready,
-        "stt_error": models.stt_error,
-        "tts_error": models.tts_error,
+        "stt_error": "STT_MODEL_LOAD_FAILED" if models.stt_error else None,
+        "tts_error": "TTS_MODEL_LOAD_FAILED" if models.tts_error else None,
+        "runtime_ready": report["runtime_ready"],
+        "voice_ready": report["voice_ready"],
+        "readiness": report["readiness"],
+        "issues": report["issues"],
     }
+
+
+@app.get("/api/readiness")
+async def readiness() -> dict:
+    """Read-only quick checks; no 3 GB hashing, model load or external requests."""
+    return await _readiness_report()
+
+
+@app.post("/api/models/recheck")
+async def recheck_models() -> dict:
+    """Explicit prerequisite recheck; never loads/unloads models or retries inference."""
+    report = await _readiness_report(include_load_errors=False)
+    reset = {"stt": False, "tts": False}
+    if report["voice_ready"] and not models._load_lock.locked():
+        async with models._load_lock:
+            reset = {"stt": bool(models._stt_error), "tts": bool(models._tts_error)}
+            models._stt_error = None
+            models._tts_error = None
+    current = await _readiness_report()
+    return {"rechecked": True, "readiness": current["readiness"], "reset": reset, "issues": current["issues"]}
 
 
 
@@ -364,6 +438,7 @@ async def stt(request: Request) -> dict:
     # become a draft. Quiet but nonzero recordings still go through recognition.
     if audio.size == 0 or not np.any(audio):
         return {"text": "", "language": CONFIG["stt"].get("language", "zh"), "no_speech": True}
+    await asyncio.to_thread(_require_voice_ready_sync)
     # Reuse the installed local Silero detector before ASR. Non-speech noise
     # otherwise produces plausible but invented Paraformer transcripts.
     # This is not speaker identification or acoustic echo cancellation.
@@ -394,6 +469,8 @@ async def tts(req: TTSRequest, request: Request) -> Response:
     if len(text) > 512:
         logger.warning("TTS text truncated from %d to 512 chars", len(text))
         text = text[:512]
+
+    await asyncio.to_thread(_require_voice_ready_sync)
 
     cancel = threading.Event()
 

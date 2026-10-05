@@ -4,11 +4,9 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
-import importlib.metadata as metadata
 import json
-import re
-import sys
 from pathlib import Path
+from voice_diagnostics import collect_readiness, expected_dependencies
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -28,7 +26,7 @@ def main() -> int:
     parser.add_argument("--require-models", action="store_true", help="Require all exact model artifacts and verify their hashes.")
     args = parser.parse_args()
     errors: list[str] = []
-    for name in ("voice_bridge.py", "qq_bridge.py", "verify_install.py"):
+    for name in ("voice_bridge.py", "qq_bridge.py", "verify_install.py", "voice_diagnostics.py", "model_resources.py", "smoke_test.py", "test_model_resources.py"):
         ast.parse((HERE / name).read_text(encoding="utf-8"), filename=name)
     config = json.loads((HERE / "bridge-config.example.json").read_text(encoding="utf-8"))
     expected = {"backend": "funasr", "device": "cuda", "torch_dtype": "float32", "language": "zh"}
@@ -41,43 +39,28 @@ def main() -> int:
         if file_hash(HERE / "wheels" / name) != detail["sha256"]:
             errors.append("Wheel hash mismatch: " + name)
     dependencies = 0
+    readiness = None
     if not args.source_only:
-        if sys.version_info[:2] != (3, 12):
-            errors.append("Use Python 3.12; audited interpreter was 3.12.14")
-        requirements = (HERE / "requirements.lock.txt").read_text().splitlines()
-        requirements += (HERE / "requirements-gpu.txt").read_text().splitlines()
-        requirements += ["speech-to-speech==0.2.10", "faster-qwen3-tts==0.2.6", "qwen-tts==0.1.1"]
-        for line in requirements:
-            match = re.fullmatch(r"([A-Za-z0-9_.-]+)==(.+)", line)
-            if not match:
-                continue
-            name, version = match.groups()
-            dependencies += 1
-            try:
-                installed = metadata.version(name)
-            except metadata.PackageNotFoundError:
-                errors.append("Missing dependency: " + name)
-                continue
-            if installed != version:
-                errors.append(f"Dependency mismatch: {name} (expected {version}, installed {installed})")
-        if not errors:
-            import torch
-            if not torch.cuda.is_available():
-                errors.append("CUDA is unavailable; this preset requires its current CUDA backend")
-            elif not torch.cuda.is_bf16_supported():
-                errors.append("CUDA BF16 is unavailable; this preset requires Qwen3 bfloat16")
+        dependencies = len(expected_dependencies())
+        readiness = collect_readiness(full_hash=args.require_models)
+        for check in readiness["checks"]:
+            is_model_check = check["code"].startswith("MODEL_")
+            if check["status"] != "ok" and (args.require_models or not is_model_check):
+                errors.append({key: check[key] for key in ("code", "message", "action")})
     missing_models = []
     resource_files = json.loads((HERE / "model-resources.json").read_text())["files"]
     for entry in resource_files:
         local = ROOT / entry["path"]
         if not local.is_file():
             missing_models.append(entry["path"])
-        elif args.require_models and file_hash(local) != entry["sha256"]:
+        elif args.source_only and args.require_models and file_hash(local) != entry["sha256"]:
             errors.append("Model artifact hash mismatch: " + entry["path"])
-    if args.require_models and missing_models:
+    if args.source_only and args.require_models and missing_models:
         errors.append("Missing model resources; follow integrations/voice-bridge/README.md")
     print(json.dumps({"passed": not errors, "source_only": args.source_only, "dependencies_checked": dependencies,
                       "models_present": len(resource_files) - len(missing_models), "models_required": len(resource_files),
+                      "runtime_ready": readiness["runtime_ready"] if readiness else None,
+                      "voice_ready": readiness["voice_ready"] if readiness else None,
                       "weights_loaded": False, "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

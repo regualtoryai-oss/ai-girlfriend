@@ -1,6 +1,8 @@
 import {buildJevContext} from './author-jev-context.mjs';
 import {beginCamping,campingRoute,campingPrompt,campingGuard,restoreAndRecoverCamping,acceptCampingRecovery,handleWorkflowEnd} from './camping-workflow.mjs';
 import {chooseChainRoute} from './author-chain-route.mjs';
+import {assertTaskConfiguration} from '../../config/readiness.mjs';
+import {fileURLToPath} from 'node:url';
 
 import {createHash} from 'node:crypto';
 
@@ -36,6 +38,8 @@ export function apply(ctx){
    const message=p.messages.flatMap(m=>m.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
 
    if(message){
+    // Configuration checks must precede Jev, which can itself incur provider cost.
+    assertTaskConfiguration(fileURLToPath(new URL('../../',import.meta.url)),process.env,{dataRoot:process.env.COMPANION_DATA_ROOT,hostEnvironment:true});
     choices.delete(p.agent); chainRoutes.delete(p.agent);
     const state=buildJevContext(p.agent.session,p.messages,message,p.turn);
 

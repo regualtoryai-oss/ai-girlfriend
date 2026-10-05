@@ -1,5 +1,5 @@
 /** Project documented author tool outputs; never display their raw JSON. */
-export interface SceneArtifact {name: string; path: string}
+export interface SceneArtifact {name: string; path: string; bytes: number; sha256: string}
 export interface SceneResultSummary {
   state: 'completed' | 'notApproved' | 'read' | 'error' | 'returned'
   filenames: string[]
@@ -16,7 +16,7 @@ export function isSceneArtifactPath(path: string): boolean {
 function verifiedFile(value: unknown): SceneArtifact | undefined {
   const entry = record(value)
   if (!entry || typeof entry.path !== 'string' || !isSceneArtifactPath(entry.path) || typeof entry.bytes !== 'number' || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(entry.sha256)) return undefined
-  return {name: entry.path.split('/').at(-1)!, path: entry.path}
+  return {name: entry.path.split('/').at(-1)!, path: entry.path, bytes: entry.bytes, sha256: entry.sha256.toLowerCase()}
 }
 export function summarizeSceneResult(toolName: string | undefined, text: string, isError: boolean): SceneResultSummary {
   const neutral: SceneResultSummary = {state: 'returned', filenames: [], artifacts: []}

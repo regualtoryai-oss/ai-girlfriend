@@ -18,6 +18,9 @@ jobs:
       - run: python -m pip install -r requirements-files.txt
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm run test:readiness
+      - run: python -m unittest discover -s integrations/voice-bridge -p test_model_resources.py
+      - run: python -m unittest discover -s scripts -p doctor_launcher_test.py
       - run: node --test dsh/author/portability.test.mjs integrations/dsh-ui-voice/tests/audio-lifecycle.test.mjs
       - run: npm ci --ignore-scripts --omit=optional
         working-directory: packages/jev-plugin

@@ -6,13 +6,29 @@
 
 const DEFAULT_BRIDGE = 'http://127.0.0.1:8765'
 
-/** Resolve the bridge base URL (localStorage override wins). */
-export function bridgeBase(): string {
+/** Browser overrides may select only an explicit local HTTP service, never a remote recipient. */
+function configuredBridge(): string | undefined {
   try {
-    return localStorage.getItem('s2s.voice.bridge')?.trim() || DEFAULT_BRIDGE
+    const stored = localStorage.getItem('s2s.voice.bridge')?.trim()
+    if (!stored) return DEFAULT_BRIDGE
+    const url = new URL(stored)
+    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
+      || !url.port || !/^\d+$/.test(url.port) || url.username || url.password || url.search || url.hash || url.pathname !== '/') return undefined
+    return url.origin
   } catch {
+    // An unavailable storage API uses the standard local service; malformed URLs are rejected below.
+    try {if (localStorage.getItem('s2s.voice.bridge')?.trim()) return undefined} catch {return DEFAULT_BRIDGE}
     return DEFAULT_BRIDGE
   }
+}
+/** A rejected override still allows the local character to render, without contacting the override. */
+export function bridgeBase(): string { return configuredBridge() ?? DEFAULT_BRIDGE }
+/** The readiness UI exposes invalid bridge configuration without showing its value. */
+export function bridgeConfigurationValid(): boolean { return configuredBridge() !== undefined }
+function speechBridgeBase(): string {
+  const base = configuredBridge()
+  if (!base) throw Error('VOICE_BRIDGE_ADDRESS_INVALID')
+  return base
 }
 
 /**
@@ -32,7 +48,7 @@ export function readVoiceEnabled(): boolean {
 
 /** Speech to text: raw 16 kHz mono PCM16 -> { text, language }. */
 export async function stt(pcm16: ArrayBuffer, signal?: AbortSignal, maxAudioSec = 30): Promise<{ text: string; language?: string }> {
-  const resp = await fetch(`${bridgeBase()}/api/stt`, {
+  const resp = await fetch(`${speechBridgeBase()}/api/stt`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/octet-stream',
@@ -56,7 +72,7 @@ export async function tts(text: string, signal?: AbortSignal): Promise<ArrayBuff
     body: JSON.stringify({ text }),
   }
   if (signal !== undefined) init.signal = signal
-  const resp = await fetch(`${bridgeBase()}/api/tts`, init)
+  const resp = await fetch(`${speechBridgeBase()}/api/tts`, init)
   if (!resp.ok) {
     const body = await resp.text().catch(() => '')
     throw new Error(`voice bridge /api/tts failed: ${resp.status} ${body}`.trim())

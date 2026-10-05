@@ -16,6 +16,8 @@ if (-not (Test-Path -LiteralPath $pnpmFile)) {
   & $npmExe install --prefix (Join-Path $projectRoot 'build-tools') --ignore-scripts --no-audit --no-fund pnpm@11.7.0 --registry=https://registry.npmjs.org --cache (Join-Path $projectRoot 'cache\npm')
   if ($LASTEXITCODE -ne 0) { throw 'Pinned build-tool installation failed.' }
 }
+$previousBuildPath = $env:Path
+$env:Path = (Join-Path $projectRoot 'build-tools\node_modules\.bin') + [IO.Path]::PathSeparator + $previousBuildPath
 Push-Location $sourceRoot
 try {
   $prepared = Test-Path -LiteralPath (Join-Path $sourceRoot '.companion-author-prepared.json')
@@ -41,7 +43,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'fs-ext native build failed; inspect the compiler output.' }
   & $nodeExe $pnpmFile run build
   if ($LASTEXITCODE -ne 0) { throw 'Pinned Harness and current author UI build failed.' }
-} finally { Pop-Location }
+} finally { Pop-Location; $env:Path = $previousBuildPath }
 & $npmExe ci --ignore-scripts --prefix (Join-Path $projectRoot 'packages\jev-plugin')
 if ($LASTEXITCODE -ne 0) { throw 'Jev dependencies failed.' }
 & $npmExe ci --ignore-scripts --prefix (Join-Path $projectRoot 'packages\voice-plugin')

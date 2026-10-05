@@ -10,6 +10,10 @@ import type { ReplySpeaker } from './voice/speaker.ts'
 
 /** Injected behavior face the voice components receive from the plugin apply. */
 export interface VoiceInjected {
+  /** Read-only readiness gates new synthesis without changing the user's reading preference. */
+  canReadVoice: () => boolean
+  /** Publish the current product check to the existing per-fiber speech owner. */
+  setVoiceReady: (ready: boolean) => void
   /** Cancel the actual session task, independently of audio playback. */
   cancelTask: () => Promise<void>
   /** Open a verified author-tool artifact through the existing host path API. */

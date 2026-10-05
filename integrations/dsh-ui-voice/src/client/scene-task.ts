@@ -16,6 +16,15 @@ export function projectSceneTask(nodes: readonly SceneTaskNode[], facts: {
   const settled = root && 'kind' in root ? root : undefined
   const text = settled?.content.filter(block => block.type === 'text').map(block => block.text).join(' ') ?? ''
   const summary = settled ? summarizeSceneResult(settled.call?.name, text, settled.isError) : undefined
+  // A later read/list tool must not erase earlier approved changes in this turn.
+  const artifacts = new Map<string, SceneResultSummary['artifacts'][number]>()
+  for (const node of current) {
+    if (node.kind !== 'tool-call') continue
+    const result = (node.data as ToolChatData).root
+    if (!('kind' in result)) continue
+    const content = result.content.filter(block => block.type === 'text').map(block => block.text).join(' ')
+    for (const file of summarizeSceneResult(result.call?.name, content, result.isError).artifacts) artifacts.set(file.path, file)
+  }
   const reason = turn?.end?.data.reason.kind
   let state: SceneTaskState | undefined
   if (facts.pendingKind) state = facts.pendingKind === 'approval' ? 'approval' : 'waiting'
@@ -24,7 +33,7 @@ export function projectSceneTask(nodes: readonly SceneTaskNode[], facts: {
   else if (reason === 'interrupted') state = 'interrupted'
   else if (reason === 'error' || facts.error) state = 'error'
   else if (reason === 'blocked' || reason === 'max-tokens') state = 'blocked'
-  else state = summary?.state
+  else state = summary?.state ?? (current.length ? 'returned' : undefined)
   const active = facts.running || facts.submitting || !!facts.pendingKind
-  return {state, active, turn, current, key: `${turn?.turn ?? 'none'}:${tool?.key ?? 'turn'}`, summary: active ? undefined : summary}
+  return {state, active, turn, current, key: `${turn?.turn ?? 'none'}:${tool?.key ?? 'turn'}`, summary: active ? undefined : summary, artifacts: [...artifacts.values()]}
 }

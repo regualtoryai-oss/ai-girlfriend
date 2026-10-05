@@ -7,7 +7,12 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const repo=path.join(root,'vendor/deepseek-harness-0.1.3-alpha.1');
 const configFile=path.join(root,'data/private-config/providers.json');
-const stored=existsSync(configFile)?JSON.parse(readFileSync(configFile,'utf8')):{};
+let stored={};
+if(existsSync(configFile)){
+ try{stored=JSON.parse(readFileSync(configFile,'utf8').replace(/^\uFEFF/,''));}
+ catch{throw Error('PROVIDERS_CONFIG_INVALID');}
+ if(!stored||typeof stored!=='object'||Array.isArray(stored))throw Error('PROVIDERS_CONFIG_INVALID');
+}
 const origin='https://newapi1.1234bot.com';
 const relayKey=process.env.COMPANION_RELAY_API_KEY||stored.relay?.apiKey;
 if(!relayKey||(stored.relay?.apiKey&&!process.env.COMPANION_RELAY_API_KEY&&stored.relay.baseUrl!==origin))throw Error('AUTHORIZED_RELAY_NOT_CONFIGURED');

@@ -21,7 +21,6 @@ import { VoiceToolbar } from './VoiceToolbar.tsx'
 import { ReplySpeakerMount } from './voice/reply-listener.tsx'
 import { ReplySpeaker } from './voice/speaker.ts'
 import { CompanionController } from './voice/companion-controller.ts'
-import { bridgeBase } from './bridge.ts'
 import type { VoiceInjected } from './contract.ts'
 import { en, zh, type VoiceKey } from './locales.ts'
 
@@ -47,7 +46,7 @@ export const inject = ['slots', 'locale', 'sessions', 'layout', 'remote', 'remot
  */
 export function apply(ctx: ClientContext): void {
   // Diagnostic stamp: tells us which bundle build the browser actually runs.
-  console.log('[ui-voice] loaded, bridge =', bridgeBase())
+  console.log('[ui-voice] loaded')
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-voice: dictionaries')
 
@@ -66,6 +65,7 @@ export function apply(ctx: ClientContext): void {
   // Barge-in handler registered by the reply listener (swallow the current
   // reply when the user starts speaking).
   let interruptHandler: (() => void) | null = null
+  let voiceReady = false
 
   const faces = new Map<SessionId | undefined, VoiceInjected>()
   ctx.effect(() => () => faces.clear(), 'ui-voice: face teardown')
@@ -73,6 +73,11 @@ export function apply(ctx: ClientContext): void {
     const cached = faces.get(sessionId)
     if (cached) return cached
     const face: VoiceInjected = ({
+    canReadVoice: () => voiceReady,
+    setVoiceReady: (ready: boolean) => {
+      if (voiceReady && !ready) {speaker.stop(); activeTtsController?.abort(); interruptHandler?.()}
+      voiceReady = ready
+    },
     cancelTask: async () => {
       const session = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId)?.session
       if (!session) throw new Error('[ui-voice] no session for cancellation')

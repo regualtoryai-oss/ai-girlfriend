@@ -1,8 +1,10 @@
 import {taskZh, taskEn} from './task-locales.ts'
+import {productZh, productEn} from './product-locales.ts'
 /** `voice` namespace dictionaries. */
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  ...productZh,
   'stage.audioError': '声音播放失败，请点击语音控件后重试。',
   ...taskZh,
   'stage.pauseMotion': '静态画面（暂停预制动作）',
@@ -75,6 +77,7 @@ export type VoiceKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  ...productEn,
   'stage.audioError': 'Audio playback failed. Activate a voice control and retry.',
   ...taskEn,
   'stage.pauseMotion': 'Still image (pause preset motion)',

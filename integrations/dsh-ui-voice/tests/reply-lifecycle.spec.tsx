@@ -13,17 +13,17 @@ const reply=(anchor:number,status:string,text='A complete reply!'):Node=>({kind:
 
 describe('current reply delivery lifecycle',()=>{
  let root:Root|undefined,host:HTMLDivElement,nodes:Node[],running:boolean,revision:number;
- let interrupt:(()=>void)|null,active:AbortController|null;
+ let interrupt:(()=>void)|null,active:AbortController|null,voiceReady:boolean;
  const speaker={speak:vi.fn(),stop:vi.fn()};
  const useChat=<T,>(selector:(state:{nodes:{values:()=>Node[]}})=>T)=>selector({nodes:{values:()=>nodes}});
  const useSession=<T,>(selector:(state:{running:boolean})=>T)=>selector({running});
  const registerInterrupt=(value:(()=>void)|null)=>{interrupt=value;};
  const registerTts=(value:AbortController|null)=>{active=value;};
- const props=()=>({useChat,useSession,speaker,_registerTtsAbort:registerTts,_registerInterruptHandler:registerInterrupt,revision:++revision}) as unknown as ComponentProps<typeof ReplySpeakerMount>;
+ const props=()=>({useChat,useSession,speaker,canReadVoice:()=>voiceReady,_registerTtsAbort:registerTts,_registerInterruptHandler:registerInterrupt,revision:++revision}) as unknown as ComponentProps<typeof ReplySpeakerMount>;
  const render=async()=>{await act(async()=>{root!.render(createElement(ReplySpeakerMount,props()));});};
  beforeEach(()=>{
   (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;
-  nodes=[];running=false;revision=0;interrupt=null;active=null;
+  nodes=[];running=false;revision=0;interrupt=null;active=null;voiceReady=true;
   host=document.createElement('div');document.body.append(host);root=createRoot(host);
   localStorage.clear();vi.clearAllMocks();bridge.dhStatus.mockResolvedValue({enabled:false});bridge.tts.mockResolvedValue(new ArrayBuffer(4));
  });
@@ -56,5 +56,13 @@ describe('current reply delivery lifecycle',()=>{
   await act(async()=>root!.unmount());root=undefined;
   expect(signal.aborted).toBe(true);expect(speaker.stop).toHaveBeenCalledTimes(1);
   await act(async()=>{finish!(new ArrayBuffer(4));});expect(speaker.speak).not.toHaveBeenCalled();
+ });
+ it('blocks cold/unavailable voice and only resumes for a new user turn after a read-only recovery',async()=>{
+  voiceReady=false;nodes=[user(1),reply(2,'running','Do not synthesize this turn!')];running=true;await render();
+  expect(bridge.tts).not.toHaveBeenCalled();expect(speaker.speak).not.toHaveBeenCalled();
+  voiceReady=true;nodes=[user(1),reply(2,'settled','Do not replay this completed turn.')];running=false;await render();
+  expect(bridge.tts).not.toHaveBeenCalled();expect(speaker.speak).not.toHaveBeenCalled();
+  nodes=[...nodes,user(3),reply(4,'running','A new authorized reply!')];running=true;await render();
+  expect(bridge.tts).toHaveBeenCalledTimes(1);expect(speaker.speak).toHaveBeenCalledTimes(1);
  });
 });

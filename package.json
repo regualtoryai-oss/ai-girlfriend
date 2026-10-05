@@ -6,7 +6,14 @@
   "scripts": {
     "start": "node dsh/author/start.mjs",
     "start:legacy": "node server/app.mjs",
-    "test": "node --test server/*.test.mjs"
+    "test": "node --test server/*.test.mjs",
+    "test:readiness": "node --test dsh/author/product-readiness.test.mjs dsh/author/provider-error.test.mjs scripts/doctor.test.mjs integrations/harness/prepare.test.mjs",
+    "doctor": "node scripts/doctor.mjs --text",
+    "doctor:json": "node scripts/doctor.mjs --json",
+    "configure": "node scripts/configure.mjs",
+    "setup": "powershell -NoProfile -File Setup-Companion.ps1",
+    "models:plan": "python integrations/voice-bridge/model_resources.py plan",
+    "models:verify": "python integrations/voice-bridge/model_resources.py verify"
   },
   "engines": {
     "node": ">=24"

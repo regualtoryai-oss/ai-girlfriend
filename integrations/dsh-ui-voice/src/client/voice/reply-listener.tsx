@@ -74,6 +74,7 @@ export const ReplySpeakerMount = memo(function ReplySpeakerMount({
   speaker,
   _registerTtsAbort,
   _registerInterruptHandler,
+  canReadVoice,
 }: ReplySpeakerMountProps) {
   // 0.1.3: chat nodes live on the `useChat` view snapshot (subscribing to it
   // activates the chat target and materializes the nodes). Read them via the
@@ -185,6 +186,15 @@ export const ReplySpeakerMount = memo(function ReplySpeakerMount({
   // bridge, which renders a lip-synced video (with the TTS audio embedded);
   // the companion window plays video + sound together once it is ready.
   useEffect(() => {
+    if (canReadVoice?.() === false) {
+      interruptedUser.current = Math.max(0, ...chatNodes(chat).filter(node => node.kind === 'user').map(node => node.anchorSeq))
+      skipUntilRef.current = Math.max(skipUntilRef.current, ...chatNodes(chat).filter(node => node.kind === 'assistant-step').map(node => node.anchorSeq), 0)
+      baselineRef.current = skipUntilRef.current
+      epoch.current++; activeRequest.current?.abort(); chainRef.current = Promise.resolve()
+      for (const {timer} of dhLastDebounceRef.current.values()) clearTimeout(timer)
+      dhLastDebounceRef.current.clear()
+      return
+    }
     if (!voiceEnabled()) return
     const userAnchor = Math.max(0, ...chatNodes(chat).filter(n => n.kind === 'user').map(n => n.anchorSeq))
     if (interruptedUser.current !== null && userAnchor <= interruptedUser.current) return
@@ -285,6 +295,7 @@ export const ReplySpeakerMount = memo(function ReplySpeakerMount({
         }
       }
       const submitDh = (pick: TurnPick): void => {
+        if (canReadVoice?.() === false) return
         const base = baselineRef.current
         if (base !== null && pick.anchor <= base) return
         if (pick.anchor === skipAnchorRef.current) return
@@ -360,25 +371,25 @@ export const ReplySpeakerMount = memo(function ReplySpeakerMount({
     const generation = epoch.current
     chainRef.current = jobs.reduce(
       (chain, job) => chain.then(() => {
-        if (generation !== epoch.current || interruptRef.current || !voiceEnabled()) return
+        if (generation !== epoch.current || interruptRef.current || !voiceEnabled() || canReadVoice?.() === false) return
         const controller = new AbortController()
         activeRequest.current = controller
         _registerTtsAbort(controller)
         return tts(job.sentence, controller.signal)
           .then((wav) => {
-            if (generation !== epoch.current || interruptRef.current || !voiceEnabled()) return
+            if (generation !== epoch.current || interruptRef.current || !voiceEnabled() || canReadVoice?.() === false) return
             speaker.speak(wav)
           })
           .catch((err) => {
             if ((err as Error | undefined)?.name !== 'AbortError') {
-              console.error('[ui-voice] reply TTS failed:', err)
+              console.error('[ui-voice] reply TTS failed: VOICE_SYNTHESIS_FAILED')
             }
           })
           .finally(() => { if (activeRequest.current === controller) { activeRequest.current = null; _registerTtsAbort(null) } })
       }),
       chainRef.current,
     )
-  }, [chat, speaker, _registerTtsAbort, bridgeDh, sessionRunning])
+  }, [chat, speaker, _registerTtsAbort, bridgeDh, sessionRunning, canReadVoice])
 
   return null
 })

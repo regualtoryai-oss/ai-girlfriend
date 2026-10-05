@@ -28,6 +28,17 @@
 .settings h2 { font-size: 20px; margin: 0 0 20px; }
 .reading { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-size: 14px; }
 .health { margin-top: 22px; }
+.taskPanel { font-size: 14px; line-height: 1.65; z-index: 66; }
+.panelActions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.panelArtifacts { padding: 0; list-style: none; margin: 18px 0; }
+.panelArtifacts li { border-top: 1px solid var(--dsw-alias-border-l3); padding: 12px 0; overflow-wrap: anywhere; }
+.panelArtifacts small { display: block; font-size: 11px; opacity: .75; }
+.panelArtifacts a { color: inherit; display: inline-flex; align-items: center; padding: 8px 10px; }
+.panelNote { font-size: 12px; opacity: .75; }
+.taskPanel > :last-child { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--dsw-alias-border-l3); }
+.toolbar [data-voice-error] { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(210px, calc(env(safe-area-inset-bottom) + 190px)); width: min(460px, calc(100vw - 40px)); padding: 10px 14px; border-radius: 12px; box-sizing: border-box; color: #fff9f1; background: rgba(30, 23, 19, .9); font-size: 13px; line-height: 1.6; }
+.toolbar [data-voice-error] p { margin: 0; }
+.toolbar [data-voice-error] button { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; padding: 8px 0 0; }
 .settings button, :global([data-voice-transcript-confirmation]) button { padding: 9px 12px; min-height: 40px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-button-floating-fill); border: .5px solid var(--dsw-alias-border-l3); border-radius: 9px; cursor: pointer; }
 .settings textarea, :global([data-voice-transcript-confirmation]) textarea { box-sizing: border-box; max-width: 100%; padding: 10px; margin: 8px 0; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); border: .5px solid var(--dsw-alias-border-l3); border-radius: 10px; font: inherit; }
 .microphone > :global([data-voice-transcript-confirmation]) { position: fixed; left: max(20px, calc((100vw - 560px) / 2)); bottom: 152px; width: min(560px, calc(100vw - 40px)); max-height: calc(100dvh - 270px); overflow: auto; box-sizing: border-box; padding: 20px; border-radius: 18px; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); box-shadow: var(--dsw-elevation-panel); font-size: 14px; line-height: 1.5; z-index: 72; }
