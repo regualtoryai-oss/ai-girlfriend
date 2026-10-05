@@ -12,3 +12,24 @@ public/assets/*
 evidence/
 deliverables/
 *.log
+
+runtime/
+workspaces/
+
+build-tools/
+
+# Local research, model weights and personal recovery snapshots.
+/models/
+/backups/
+__pycache__/
+*.pyc
+.venv/
+
+# Experimental author launchers are outside this reviewed public release.
+/dsh/author/
+/dsh/native/
+/dsh/companion-plugin.mjs
+/dsh/companion.patch.yml
+/dsh/run-proof.mjs
+/Start-Author-Demo.cmd
+/Start-Author-Demo.py

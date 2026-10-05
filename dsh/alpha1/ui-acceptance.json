@@ -1,0 +1,23 @@
+{
+  "id": "85087f12-4801-42b6-be8d-9b05bf042a4a",
+  "turnId": "b66b598c-17cb-427d-b008-bc1747432af3",
+  "state": "completed",
+  "revision": 3,
+  "executor": "deepseek-harness",
+  "harnessVersion": "0.1.3-alpha.1",
+  "sha256": "58d0b4a5338679a943167efe22f72bf86f833278c8f1983d9b03e0c747e3de11",
+  "bytes": 81,
+  "evidence": {
+    "runtime": "0.1.3-alpha.1",
+    "commit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+    "tool": "companion_write_note",
+    "toolSucceeded": true,
+    "sourceFile": "workspaces\\dsh-task-375011af-fdab-4c41-b818-f9e953afe016\\companion-note.md"
+  },
+  "downloadClicked": true,
+  "download": {
+    "status": 200,
+    "bytes": 81,
+    "sha256": "58d0b4a5338679a943167efe22f72bf86f833278c8f1983d9b03e0c747e3de11"
+  }
+}

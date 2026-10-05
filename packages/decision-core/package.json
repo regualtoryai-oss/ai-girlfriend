@@ -1,0 +1,10 @@
+{
+  "name": "@ai-girlfriend/decision-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Server-side, fail-closed decision contracts. No providers or credentials included.",
+  "exports": { ".": { "types": "./index.d.mts", "import": "./index.mjs" } },
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test ../../tests/contracts/decision-core.test.mjs" }
+}
