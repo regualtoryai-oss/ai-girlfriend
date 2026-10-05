@@ -14,8 +14,8 @@ The plugin signals registration and the official `appReady` lifecycle before the
 
 The overlay selects native tools, denies other tools at execution, disables general shell/filesystem/web tools and automatic session uploads/telemetry, keeps workspace-write, and sets zero automatic provider retries. The note tool writes only one fixed filename inside a newly allocated task workspace with exclusive creation. No arbitrary paths, commands or network actions are exposed by the note plugin.
 
-## Remaining integration
+## Current integration
 
-The existing 8793 UI still uses its prior bounded local task handler. It is not yet wired to this Harness proof. Jev plugin integration, author voice plugin startup, live ASR/TTS, microphone access, real-time avatar animation and interruption remain unverified. The author's voice manifest is 0.3.0; pin the actual source commit before installation. Existing video assets are offline research samples.
+The 8793 UI now runs actual Jev decisions and Harness file tasks. A separate persistent official alpha.1 SDK host mounts companionVoice and an authenticated loopback bridge. Voice requests route through the same real Harness adapter; no model is called on binding or saving configuration. Existing CPU Whisper serves raw PCM16 mono 16kHz WAV at 127.0.0.1:8795/transcribe. The browser records only after explicit click and permission, and uses a local Chinese system voice only as a labelled temporary output.
 
-Do not copy real provider config files into source, profile files or bundles. Preserve the existing 0.2 runtime separately. Do not claim full repository build or Web client acceptance: this checkpoint validates the official source SDK runtime and genuine file-task chain.
+The official build:lib:host completed locally. Cloud's compiled-entry loader test still failed on Windows absolute import URLs and a missing gateway build dependency. The actual source-entry hosts and real Jev/file-audio end-to-end requests passed. See ACCEPTANCE.md. No final natural voice or real-time avatar claim.

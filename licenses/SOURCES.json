@@ -1,13 +1,36 @@
 {
   "deepseek-harness": {
     "url": "https://github.com/deepseek-ai/deepseek-harness",
-    "revision": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "version": "0.1.3-alpha.1",
+    "tag": "dsh-v0.1.3-alpha.1",
+    "revision": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
     "license": "MIT",
-    "usage": "Fresh isolated source only; not running"
+    "usage": "Pinned official source CLI with sdk profile; downloaded separately into ignored vendor directory",
+    "lock": "dsh/alpha1/version-lock.json",
+    "verification": "Prior local runtime and live-task records; ordinary public-demo tests do not make live provider calls"
+  },
+  "voice-behavior-reference": {
+    "url": "https://github.com/beiyege-01/dsh-voice-ai-girlfriend",
+    "version": "0.3.0",
+    "revision": "480bbabada7335735cad591eaa55f32fe54a4214",
+    "licenseNotes": "Reviewed upstream root Apache-2.0, client plugin MIT, media separately restricted",
+    "usage": "Behavior and integration reference for independent local voice implementation; no upstream source or media bundled",
+    "details": "packages/voice-plugin/README.md"
+  },
+  "typesafe-sdk": {
+    "package": "@typesafe-ai/sdk",
+    "version": "0.6.0",
+    "usage": "Installed package used by server-owned Jev provider integration; retains package terms"
   },
   "local-file-task": {
-    "source": "Prior authorized local prototype; translated deterministic Markdown writer",
-    "execution": "No LLM or shell"
+    "source": "Prior authorized local prototype; newly authored bounded Markdown writer and workspace tools",
+    "execution": "Local demo uses explicit deterministic adapters; live mode uses Harness tool events and independently checked permissions",
+    "license": "MIT for newly authored project code"
   },
-  "assets": "Private local files only; excluded from Git"
+  "assets": {
+    "public": "Newly authored SVG placeholder only; root MIT license",
+    "excluded": ["original portrait", "idle video", "reference audio/video", "model weights", "research model outputs"],
+    "manifest": "public/assets/manifest.json",
+    "details": "licenses/ASSET-NOTICE.md"
+  }
 }

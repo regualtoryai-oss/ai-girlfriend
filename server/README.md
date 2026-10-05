@@ -1,17 +1,92 @@
 # Local Harness integration
 
-Production `server/app.mjs` binds only 127.0.0.1:8793. It uses the exact official Harness alpha.1 source CLI with the `sdk` profile. See `dsh/alpha1/README.md` and `version-lock.json`. No newer Harness substitution or global tool install.
+`npm run demo` runs `server/demo.mjs` with explicit `offline-demo` status and
+`allowExternalCalls:false`. Its deterministic adapter simulates chat and a bounded
+draft plan, while approval, local file creation and download are actual operations.
+It does not read private provider configuration, authorize external calls or start
+voice capture. Configuration routes are unavailable in this mode.
 
-`createApp`/`createServer` still default to no external calls. Injected test adapters never become active without `allowExternalCalls:true`. Production uses `createHarnessAdapter` for both chat and file tasks. Jev is configured but is not called while its actual Cordis plugin is pending. Existing TypeSafe provider code is retained as a preparation seam, not the active decision loop.
+`npm start` runs `server/app.mjs` in local real-runtime mode. It binds only
+`127.0.0.1`, default port 8793, configurable through `COMPANION_PORT`. This entry
+enables external calls to the user's configured providers. It uses the fixed
+official Harness `0.1.3-alpha.1` source CLI with the `sdk` profile. See
+`dsh/alpha1/README.md` and `dsh/alpha1/version-lock.json`. The public repository does
+not bundle an installed runtime or usable provider credentials.
 
-Chat and task each own a separate short-lived official Harness process, fresh workspace and session. Cancelling a chat aborts only that process. File tasks are serialized, durable and idempotent, with UUID task/turn IDs and monotonically increasing revisions. Cancellation aborts the job process and forbids publishing late artifacts. Stopping avatar/audio playback never cancels a file task. The server close hook cancels running and queued jobs.
+`createApp`/`createServer` default to external calls disabled. The explicit demo
+flag permits its local conversation adapter but cannot be combined with external
+authorization. Real mode uses `createHarnessAdapter` for chat, note tasks and
+workspace conversations. A server-owned bridge binds TypeSafe with logging off
+and zero retries. Its candidate result is checked independently against the
+decision-core contract and permission rules; model decisions do not grant broader
+execution permissions.
 
-Chat has no registered execution tools. The task plugin exposes only `companion_write_note`, writing a fixed Markdown filename in its fresh workspace. The server publishes a download only after a matching successful Harness tool event and actual file exist, then verifies SHA-256 and atomically copies the artifact to the task download directory. The file-task input authorizes this bounded action; the model cannot grant wider permissions.
+## Execution and file scope
 
-`GET /api/status` reports `executor:deepseek-harness`, `harnessVersion:0.1.3-alpha.1`, current provider activity, and unconnected voice/microphone/Jev. A configured/ready provider is distinguished from a successful actual call using harnessState.connected. No microphone request, voice clone or generated real-time face is present.
+Each real turn owns a short-lived Harness process and session workspace. The
+legacy `/api/chat` route has no execution tools. The bounded note-task plugin
+exposes `companion_write_note`, writing a fixed Markdown filename; a matching
+successful tool event, actual file and SHA-256 check are required before publishing
+the downloadable note.
 
-Provider keys are accepted only through the write-only localhost admin form. Exact Origin, HttpOnly SameSite session and CSRF token are required to mutate configuration. The application privately reads its own ignored `data/private-config/providers.json`; no key value is returned, logged, put in argv, saved in Harness profiles or committed. The authorized runtime receives DeepSeek's key in a private child environment and authenticates only the configured official endpoint. Windows filesystem permissions inherit the project directory; no encryption or ACL changes are claimed.
+The newer `/api/conversation` route supports listing and reading files in the
+isolated application workspace. Create, replace, move and bounded XLSX operations
+require a concrete plan and matching user approval. Relative-path constraints and
+expected file hashes are checked by the file layer. The plan does not provide
+arbitrary desktop access, deletion, script execution or messaging tools. Cancel or
+amend invalidates pending work; already completed operations remain.
 
-Admin saves alone make no requests. `POST /api/admin/test` remains disabled. The text submission and Harness task forms explicitly invoke the configured provider. Session telemetry and automatic session-log upload are disabled. The task timeout is 65 seconds and the provider has zero automatic retries.
+Jobs have UUID task/turn IDs, persistent records, event sequence numbers and
+revisions. On restart, unfinished workspace conversations are marked `interrupted`
+for user review/retry; they are not automatically resumed. Stopping avatar/audio
+playback does not cancel a file task. Server close aborts active and queued work.
+Legacy chat/note turns use a 65-second deadline; workspace-agent turns use a
+10-minute deadline, with file-plan approval expiring after 5 minutes.
 
-Validation: 8 existing server tests and 2 Harness job lifecycle tests passed without real provider calls. Real browser submission produced a three-item Chinese Markdown via Harness, HTTP 200 download and matching SHA-256; download was clicked. See `dsh/alpha1/ui-acceptance.json` for sanitized synthetic-test evidence. Full voice, Jev routing and custom live avatar are pending.
+## Configuration and external requests
+
+Provider keys are accepted through the write-only localhost admin form. Exact
+Origin, an HttpOnly SameSite session and CSRF token protect mutations. The app reads
+only its own ignored `data/private-config/providers.json`; keys are not returned,
+logged, placed in argv or committed. Child processes receive only their selected
+provider credential. Official DeepSeek and Jev configurations are restricted to
+their official endpoints. Relay configuration uses a separate credential and one
+of four allowlisted endpoints from `model-routing.mjs`; the official key is never
+reused for a relay. Endpoint/model probes must match the current relay configuration
+before it is eligible for chat or tool routing. There is no automatic cross-site
+retry or replay after execution.
+
+In real mode, saving DeepSeek/Jev configuration makes no provider request. Saving
+relay configuration without `clear:true`, when external calls are enabled,
+attempts an authenticated `GET <selected-entry>/v1/models`. The manual
+`POST /api/admin/relay-discover` route performs the same discovery. Neither is a
+generation test or balance check, and a returned model list proves neither tool
+support nor output quality. Public users must verify their own endpoint/account;
+the four choices are not preverified for them.
+
+`POST /api/admin/relay-test` requires `confirmMeteredRequests:true` and external
+authorization. It can send up to two small generation requests: short chat and a
+harmless `connection_check` tool call, each with at most 64 output tokens and a
+2048-byte request-body limit. Tests do not execute file operations. Their results
+do not replace a real Harness streaming/task acceptance test. The legacy
+`POST /api/admin/test` remains disabled.
+
+User-submitted real chat/tasks explicitly invoke configured providers. Session
+telemetry and automatic session-log uploads are disabled. Windows file permissions
+inherit the project directory; encrypted storage or additional ACL hardening is
+not implemented.
+
+## Status and evidence
+
+`GET /api/status` reports the current mode, executor, Harness version, provider
+activity and distinct voice/Jev readiness. Configured readiness is separate from
+a successful real call through `harnessState.connected`. Microphone capture
+requires user click and browser permission. No voice clone or generated real-time
+face is bundled.
+
+Run `npm test` for the public version's offline regression suite. Historical real
+browser note download, Jev routing and file-ASR-to-Harness results are recorded in
+`ACCEPTANCE.md` and `dsh/alpha1/ui-acceptance.json`. Those records do not claim live
+calls were rerun during public-release preparation. Actual microphone, natural
+voice quality, custom live avatar and the new multimodal interfaces still require
+separate acceptance.

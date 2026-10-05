@@ -1,0 +1,90 @@
+{
+  "id": "ba2b5547-6d3c-4cb7-a9ed-ac8a5f78fd8c",
+  "turnId": "ea5b8323-8816-46d8-b7ac-faab08b335b1",
+  "state": "completed",
+  "revision": 11,
+  "events": [
+    {
+      "sequence": 1,
+      "time": "2026-10-01T06:50:26.231Z",
+      "type": "queued",
+      "summary": "任务已排队"
+    },
+    {
+      "sequence": 2,
+      "time": "2026-10-01T06:50:26.232Z",
+      "type": "running",
+      "summary": "正在启动独立任务"
+    },
+    {
+      "sequence": 3,
+      "time": "2026-10-01T06:50:28.520Z",
+      "type": "running",
+      "summary": "Harness 已启动，Jev 正在判断当前任务"
+    },
+    {
+      "sequence": 4,
+      "time": "2026-10-01T06:50:29.510Z",
+      "type": "decision",
+      "summary": "Jev 已选择 write-note；独立权限检查：allow"
+    },
+    {
+      "sequence": 5,
+      "time": "2026-10-01T06:50:29.513Z",
+      "type": "running",
+      "summary": "模型正在整理内容，等待真实工具调用"
+    },
+    {
+      "sequence": 6,
+      "time": "2026-10-01T06:50:30.860Z",
+      "type": "tool-start",
+      "summary": "开始生成 Markdown 文件",
+      "tool": "companion_write_note"
+    },
+    {
+      "sequence": 7,
+      "time": "2026-10-01T06:50:30.868Z",
+      "type": "tool-result",
+      "summary": "工具已成功写入任务文件",
+      "tool": "companion_write_note"
+    },
+    {
+      "sequence": 8,
+      "time": "2026-10-01T06:50:31.630Z",
+      "type": "artifact",
+      "summary": "产物已校验：74 字节 Markdown"
+    },
+    {
+      "sequence": 9,
+      "time": "2026-10-01T06:50:31.631Z",
+      "type": "completed",
+      "summary": "文件已完成，可点击下载"
+    }
+  ],
+  "executor": "deepseek-harness",
+  "harnessVersion": "0.1.3-alpha.1",
+  "sha256": "a6061a0380c3179dd78dbd2a8486e64ba52c20e6aa6c13638b9e40e1407e50f5",
+  "bytes": 74,
+  "evidence": {
+    "runtime": "0.1.3-alpha.1",
+    "commit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+    "tool": "companion_write_note",
+    "toolSucceeded": true,
+    "decision": {
+      "source": "typesafe-system-one",
+      "service": "companionDecision",
+      "status": "ready",
+      "choiceId": "write-note",
+      "action": "task",
+      "permission": "allow",
+      "turnId": "ea5b8323-8816-46d8-b7ac-faab08b335b1",
+      "requestId": "9ae3f922-cbdf-4130-84cd-1d1efad45e71"
+    },
+    "sourceFile": "workspaces\\dsh-task-b47a0b5c-816e-4542-96a6-70df8a62e0f4\\companion-note.md"
+  },
+  "download": {
+    "status": 200,
+    "bytes": 74,
+    "sha256": "a6061a0380c3179dd78dbd2a8486e64ba52c20e6aa6c13638b9e40e1407e50f5"
+  }
+}

@@ -24,6 +24,12 @@ try {
   & $nodeExe $pnpmFile --recursive rebuild fs-ext --reporter append-only
   if ($LASTEXITCODE -ne 0) { throw 'fs-ext native build failed; inspect the compiler output.' }
 } finally { Pop-Location }
+& $npmExe ci --ignore-scripts --prefix (Join-Path $projectRoot 'packages\jev-plugin')
+if ($LASTEXITCODE -ne 0) { throw 'Jev dependencies failed.' }
+& $npmExe ci --ignore-scripts --prefix (Join-Path $projectRoot 'packages\voice-plugin')
+if ($LASTEXITCODE -ne 0) { throw 'Voice dependencies failed.' }
+& $nodeExe (Join-Path $projectRoot 'dsh\alpha1\register-plugins.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Official plugin registration failed.' }
 & $nodeExe (Join-Path $projectRoot 'dsh\alpha1\run-proof.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Keyless Harness runtime verification failed.' }
 Write-Output 'Pinned Harness alpha.1 is ready. No provider request was made by this setup.'

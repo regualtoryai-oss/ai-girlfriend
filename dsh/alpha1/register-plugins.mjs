@@ -1,0 +1,10 @@
+import {spawn} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),repo=path.join(root,'vendor/deepseek-harness-0.1.3-alpha.1');
+const env={};for(const k of ['SystemRoot','WINDIR','COMSPEC','TEMP','TMP','PATHEXT'])if(process.env[k])env[k]=process.env[k];
+env.PATH=root+'/build-tools/node_modules/.bin;'+path.dirname(process.execPath)+';'+(process.env.PATH||process.env.Path||'');
+Object.assign(env,{DSH_HOME:root+'/data/dsh-home-alpha1',DSH_TELEMETRY_MODE:'DISABLED',DSH_TELEMETRY_DISABLED:'1',TSX_TSCONFIG_PATH:repo+'/tsconfig.json'});
+const child=spawn(process.execPath,['--import',pathToFileURL(repo+'/node_modules/tsx/dist/esm/index.mjs').href,repo+'/apps/cli/src/bin.ts','plugin','--profile','sdk','add',root+'/packages/jev-plugin',root+'/packages/voice-plugin','--ignore-scripts'],{env,cwd:root,windowsHide:true,stdio:'inherit'});
+const timer=setTimeout(()=>child.kill(),60000);child.on('exit',code=>{clearTimeout(timer);process.exitCode=code??1;});

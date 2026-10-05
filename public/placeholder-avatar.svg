@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100" role="img" aria-label="开源演示占位形象">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#30252f"/><stop offset="1" stop-color="#14181f"/></linearGradient>
+    <linearGradient id="body" x2="0" y2="1"><stop stop-color="#c694a2"/><stop offset="1" stop-color="#584455"/></linearGradient>
+  </defs>
+  <rect width="800" height="1100" fill="url(#bg)"/>
+  <circle cx="580" cy="250" r="180" fill="#cc9969" opacity=".08"/>
+  <path d="M230 530c-70-420 410-420 340 0l-5 190H235z" fill="#191a25"/>
+  <ellipse cx="400" cy="390" rx="125" ry="155" fill="#d6b5ae"/>
+  <path d="M275 385c-8-190 300-215 252 28-22-60-72-110-124-146-26 60-68 100-128 118z" fill="#22212d"/>
+  <path d="M340 530v78h120v-78" fill="#d6b5ae"/>
+  <path d="M120 1040c20-300 130-435 280-435s260 135 280 435z" fill="url(#body)"/>
+  <text x="400" y="900" text-anchor="middle" fill="#f1dedf" font-family="sans-serif" font-size="31" letter-spacing="8">COMPANION</text>
+  <text x="400" y="947" text-anchor="middle" fill="#c5afb7" font-family="sans-serif" font-size="19">OPEN SOURCE DEMO AVATAR</text>
+</svg>
